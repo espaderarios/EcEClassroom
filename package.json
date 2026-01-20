@@ -1,0 +1,13 @@
+{
+  "name": "ec-eclassroom",
+  "version": "0.1.0",
+  "description": "Flashcard Study PWA",
+  "main": "app.js",
+  "scripts": {
+    "start": "npx serve . -p 5000",
+    "dev": "npx http-server -p 5000"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {}
+}

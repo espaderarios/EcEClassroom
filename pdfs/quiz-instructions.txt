@@ -1,0 +1,22 @@
+Quiz Instructions
+
+How to Use the Quiz Feature
+
+Getting Started:
+1. Navigate to a flashcard set
+2. Click the "Quiz" button
+3. Answer questions as they appear
+
+Quiz Types:
+- Multiple Choice: Select the correct answer
+- True/False: Determine if statements are correct
+
+Scoring:
+- Correct answers: +1 point
+- Incorrect answers: 0 points
+- Final score shown as percentage
+
+Tips:
+- Read questions carefully
+- Take your time
+- Review incorrect answers after completion

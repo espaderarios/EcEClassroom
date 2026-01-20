@@ -236,6 +236,30 @@ function setBackendUrl(url) {
   toast(`✅ Backend URL set to: ${url}`);
 }
 
+// Helper: call the backend GROQ proxy
+async function fetchGroq({ projectId, dataset = 'production', query, params = {} }) {
+  if (!projectId || !query) throw new Error('projectId and query are required');
+  const base = getBackendUrl().replace(/\/$/, '');
+  const url = `${base}/api/groq`;
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projectId, dataset, query, params })
+  });
+
+  const text = await resp.text().catch(() => null);
+  let data;
+  try { data = JSON.parse(text); } catch (e) { data = text; }
+
+  if (!resp.ok) {
+    const errMsg = (data && data.error) ? data.error : text || `Status ${resp.status}`;
+    throw new Error(`GROQ proxy error: ${errMsg}`);
+  }
+
+  return data;
+}
+
 const defaultConfig = {
   app_title: "Flashcard Study",
   app_subtitle: "Create custom subjects and master your knowledge",
@@ -6484,247 +6508,12 @@ function deepMerge(target, source) {
 
 const emojiOptions = ['📚', '🧪', '🎨', '💻', '🌍', '📐', '🎵', '⚽', '🔬', '📖', '🎭', '🏛️', '💼', '🍎', '🚀', '🎯', '💡', '🔧', '🌟', '🎪'];
 
-// ---- Remote data sync helpers (ApiClient backed) ----
-const SUBJECT_FALLBACK = { name: "General", icon: "📚" };
-
-function parseSubjectMeta(description) {
-  if (!description) return { ...SUBJECT_FALLBACK };
-  try {
-    const parsed = JSON.parse(description);
-    if (parsed?.subjectName) {
-      return {
-        name: parsed.subjectName,
-        icon: parsed.subjectIcon || SUBJECT_FALLBACK.icon
-      };
-    }
-  } catch (_) {
-    // Ignore and fallback
-  }
-  return { ...SUBJECT_FALLBACK };
-}
-
-function buildSubjectDescription(subjectName, subjectIcon, extra = "") {
-  return JSON.stringify({ subjectName, subjectIcon, description: extra || "" });
-}
-
-function slugSubject(name) {
-  return `subject_${(name || "general")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "") || "general"}`;
-}
-
-async function syncDataFromApi() {
-  if (!window.ApiClient) return;
-
-  try {
-    const isAuthed = !!window.ApiClient.getToken?.();
-    const listFn = isAuthed ? window.ApiClient.listSets : window.ApiClient.listPublicSets;
-    const { sets = [] } = await listFn();
-
-    // Fetch cards for each set in parallel
-    const cardsPerSet = await Promise.all(
-      sets.map(async set => {
-        if (!isAuthed) return [];
-        try {
-          const detail = await window.ApiClient.getSet(set.id);
-          return detail?.cards || [];
-        } catch (err) {
-          console.error("Failed to load cards for set", set.id, err);
-          return [];
-        }
-      })
-    );
-
-    const subjectMap = new Map();
-    const mapped = [];
-
-    sets.forEach((set, idx) => {
-      const meta = parseSubjectMeta(set.description);
-      const subjectId = slugSubject(meta.name);
-
-      if (!subjectMap.has(subjectId)) {
-        subjectMap.set(subjectId, {
-          id: subjectId,
-          type: "subject",
-          subject_id: subjectId,
-          subject_name: meta.name,
-          subject_icon: meta.icon,
-          set_id: "",
-          set_name: "",
-          question: "",
-          answer: ""
-        });
-      }
-
-      mapped.push({
-        id: set.id,
-        type: "set",
-        subject_id: subjectId,
-        subject_name: meta.name,
-        subject_icon: meta.icon,
-        set_id: set.id,
-        set_name: set.title,
-        description: set.description,
-        is_public: !!set.is_public,
-        created_at: set.created_at
-      });
-
-      for (const card of cardsPerSet[idx] || []) {
-        mapped.push({
-          id: card.id,
-          type: "card",
-          set_id: set.id,
-          question: card.question,
-          answer: card.answer
-        });
-      }
-    });
-
-    const subjects = Array.from(subjectMap.values());
-    const prevSubjectId = currentSubject?.subject_id;
-    const prevSetId = currentSet?.set_id;
-
-    allData = [...subjects, ...mapped];
-
-    currentSubject = subjects.find(s => s.subject_id === prevSubjectId) || currentSubject;
-    currentSet = mapped.find(s => s.type === "set" && s.set_id === prevSetId) || currentSet;
-
+const dataHandler = {
+  onDataChanged(data) {
+    allData = data;
     renderApp();
-  } catch (error) {
-    console.error("Failed to sync data", error);
-    showToast("Failed to load data from server");
   }
-}
-
-// ---- Auth + backend controls ----
-const AUTH_EMAIL_KEY = "auth_email";
-
-function getStoredEmail() {
-  return localStorage.getItem(AUTH_EMAIL_KEY) || "";
-}
-
-function setStoredEmail(email) {
-  if (email) {
-    localStorage.setItem(AUTH_EMAIL_KEY, email);
-  }
-}
-
-async function handleAuthSubmit({ mode }) {
-  const emailInput = document.getElementById("authEmailInput");
-  const passwordInput = document.getElementById("authPasswordInput");
-  const backendInput = document.getElementById("backendUrlInput");
-
-  const email = emailInput?.value?.trim();
-  const password = passwordInput?.value || "";
-  const backend = backendInput?.value?.trim();
-
-  if (backend) {
-    window.ApiClient?.setApiBase?.(backend);
-  }
-
-  if (!email || !password) {
-    showToast("Email and password required");
-    return;
-  }
-
-  try {
-    if (mode === "register") {
-      await window.ApiClient.register(email, password);
-      showToast("Registered and logged in");
-    } else {
-      await window.ApiClient.login(email, password);
-      showToast("Logged in");
-    }
-    setStoredEmail(email);
-    await syncDataFromApi();
-    renderAuthPanel();
-  } catch (error) {
-    console.error("Auth failed", error);
-    showToast(error?.message || "Authentication failed");
-  }
-}
-
-async function handleLogout() {
-  window.ApiClient?.logout?.();
-  localStorage.removeItem(AUTH_EMAIL_KEY);
-  showToast("Logged out");
-  await syncDataFromApi();
-  renderAuthPanel();
-}
-
-function handleBackendSave() {
-  const backendInput = document.getElementById("backendUrlInput");
-  const url = backendInput?.value?.trim();
-  if (!url) {
-    showToast("Enter backend URL");
-    return;
-  }
-  window.ApiClient?.setApiBase?.(url);
-  showToast("Backend updated");
-  syncDataFromApi();
-}
-
-function renderAuthPanel() {
-  if (!window.ApiClient) return;
-
-  let panel = document.getElementById("authPanel");
-  if (!panel) {
-    panel = document.createElement("div");
-    panel.id = "authPanel";
-    panel.style.position = "fixed";
-    panel.style.top = "12px";
-    panel.style.right = "12px";
-    panel.style.zIndex = "3000";
-    panel.style.fontSize = "14px";
-    panel.style.maxWidth = "320px";
-    document.body.appendChild(panel);
-  }
-
-  const isAuthed = !!window.ApiClient.getToken?.();
-  const backendUrl = window.ApiClient.getApiBase?.() || "";
-
-  panel.innerHTML = `
-    <details style="background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);">
-      <summary style="cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none;">
-        <span style="font-weight: 600;">${isAuthed ? "Connected" : "Offline mode"}</span>
-        <span style="opacity: 0.7; font-size: 12px;">${isAuthed ? "(sync on)" : "(public browse)"}</span>
-      </summary>
-      <div style="margin-top: 10px; display: grid; gap: 8px;">
-        <label style="display: grid; gap: 4px;">
-          <span style="opacity: 0.8;">Backend URL</span>
-          <input id="backendUrlInput" value="${backendUrl}" style="width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #1f2937; background:#111827; color: #e2e8f0;" />
-        </label>
-        <button id="saveBackendUrlBtn" class="quiz-option" style="padding: 8px 10px; border-radius: 8px; border: none; background: #2563eb; color: white; font-weight: 600;">Save URL</button>
-
-        ${isAuthed ? `
-          <div style="display:flex; justify-content: space-between; align-items: center; gap: 8px;">
-            <span style="opacity:0.8;">Token loaded${getStoredEmail() ? ` (${getStoredEmail()})` : ""}</span>
-            <button id="logoutBtn" class="quiz-option" style="padding: 8px 10px; border-radius: 8px; border: none; background: #ef4444; color: white; font-weight: 600;">Logout</button>
-          </div>
-        ` : `
-          <label style="display: grid; gap: 4px;">
-            <span style="opacity: 0.8;">Email</span>
-            <input id="authEmailInput" value="${getStoredEmail()}" placeholder="you@example.com" style="width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #1f2937; background:#111827; color: #e2e8f0;" />
-          </label>
-          <label style="display: grid; gap: 4px;">
-            <span style="opacity: 0.8;">Password</span>
-            <input id="authPasswordInput" type="password" placeholder="••••••••" style="width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #1f2937; background:#111827; color: #e2e8f0;" />
-          </label>
-          <div style="display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px;">
-            <button id="loginBtn" class="quiz-option" style="padding: 10px; border-radius: 8px; border: none; background: #22c55e; color: #0b1021; font-weight: 700;">Login</button>
-            <button id="registerBtn" class="quiz-option" style="padding: 10px; border-radius: 8px; border: none; background: #a855f7; color: white; font-weight: 700;">Register</button>
-          </div>
-        `}
-      </div>
-    </details>
-  `;
-
-  panel.querySelector("#saveBackendUrlBtn")?.addEventListener("click", handleBackendSave);
-  panel.querySelector("#loginBtn")?.addEventListener("click", () => handleAuthSubmit({ mode: "login" }));
-  panel.querySelector("#registerBtn")?.addEventListener("click", () => handleAuthSubmit({ mode: "register" }));
-  panel.querySelector("#logoutBtn")?.addEventListener("click", handleLogout);
-}
+};
 
 function getSubjects() {
   const subjectMap = new Map();
@@ -7173,21 +6962,12 @@ function attachCardsViewListeners() {
 
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
-      try {
-        const detail = await window.ApiClient.getSet(currentSet.set_id);
-        const remaining = (detail?.cards || []).filter(c => c.id !== cardId);
-        await window.ApiClient.upsertCards(currentSet.set_id, remaining.map(c => ({
-          id: c.id,
-          question: c.question,
-          answer: c.answer
-        })));
-        await syncDataFromApi();
-      } catch (error) {
-        console.error("Failed to delete card", error);
-        showToast("Failed to delete card");
-        btn.disabled = false;
-        btn.innerHTML = '<img src="icons/delete.svg" class="icon sm" />';
-      }
+
+      // Delete the card (replace with your actual delete logic)
+      await window.dataSdk.delete({ id: cardId });
+
+      // Re-render the cards view
+      renderApp();
     });
   });
   }
@@ -8097,13 +7877,6 @@ function showAddSubjectModal() {
 
             <div style="margin-bottom: 1.5rem;">
               <label style="display: block; font-size: calc(var(--font-size) * 0.875);
- font-weight: 400; color: var(--text); margin-bottom: 0.5rem;">First Set Name</label>
-              <input type="text" id="firstSetNameInput" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: var(--radius); font-size: var(--font-size);
- color: var(--text);" placeholder="e.g., Chapter 1, Vocabulary...">
-            </div>
-
-            <div style="margin-bottom: 1.5rem;">
-              <label style="display: block; font-size: calc(var(--font-size) * 0.875);
  font-weight: 400; color: var(--text); margin-bottom: 0.5rem;">Choose Icon</label>
               <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem;">
                 ${emojiOptions.map((emoji, idx) => `
@@ -8156,6 +7929,11 @@ function showAddSubjectModal() {
   modal.querySelector('#addSubjectForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
+    if (allData.filter(d => d.type === 'subject').length >= 999) {
+      showToast('Maximum limit of 999 subjects reached');
+      return;
+    }
+
     const submitBtn = modal.querySelector('#submitSubjectBtn');
     const submitText = modal.querySelector('#submitSubjectText');
     submitBtn.disabled = true;
@@ -8163,25 +7941,25 @@ function showAddSubjectModal() {
 
     const subjectName = modal.querySelector('#subjectNameInput').value;
     const subjectIcon = selectedEmojiInput.value;
-    const firstSetName = modal.querySelector('#firstSetNameInput').value;
+    const subjectId = 'subj_' + Date.now();
 
-    if (!window.ApiClient?.getToken?.()) {
-      submitBtn.disabled = false;
-      submitText.textContent = 'Add Subject';
-      showToast('Please log in to create sets');
-      return;
-    }
+    const result = await window.dataSdk.create({
+      type: 'subject',
+      subject_id: subjectId,
+      subject_name: subjectName,
+      subject_icon: subjectIcon,
+      set_id: '',
+      set_name: '',
+      question: '',
+      answer: '',
+      created_at: new Date().toISOString()
+    });
 
-    try {
-      await window.ApiClient.createSet({
-        title: firstSetName,
-        description: buildSubjectDescription(subjectName, subjectIcon),
-        is_public: false
-      });
+    if (result.isOk) {
       modal.remove();
-      await syncDataFromApi();
-    } catch (error) {
-      console.error('Failed to add subject', error);
+      renderApp();
+    }
+    else {
       submitBtn.disabled = false;
       submitText.textContent = 'Add Subject';
       showToast('Failed to add subject. Please try again.');
@@ -8203,11 +7981,6 @@ function importCardsFromJsonForCurrentSet() {
     const file = input.files[0];
     if (!file) return;
 
-    if (!window.ApiClient?.getToken?.()) {
-      showToast('Please log in to import cards');
-      return;
-    }
-
     try {
       const text = await file.text();
       const json = JSON.parse(text);
@@ -8216,17 +7989,21 @@ function importCardsFromJsonForCurrentSet() {
         throw new Error('Invalid format');
       }
 
-      const detail = await window.ApiClient.getSet(currentSet.set_id);
-      const existing = detail?.cards || [];
-      const merged = [
-        ...existing,
-        ...json.cards
-          .filter(card => card.question && card.answer)
-          .map(card => ({ question: card.question, answer: card.answer }))
-      ];
+      for (const card of json.cards) {
+        if (!card.question || !card.answer) continue;
 
-      await window.ApiClient.upsertCards(currentSet.set_id, merged);
-      await syncDataFromApi();
+        await window.dataSdk.create({
+          type: 'card',
+          subject_id: '',
+          subject_name: '',
+          subject_icon: '',
+          set_id: currentSet.set_id,
+          set_name: '',
+          question: card.question,
+          answer: card.answer,
+          created_at: new Date().toISOString()
+        });
+      }
 
       showToast(`Imported ${json.cards.length} cards`);
     } catch (err) {
@@ -8285,39 +8062,34 @@ function showAddSetModal() {
   modal.querySelector('#addSetForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
+    if (allData.filter(d => d.type === 'set').length >= 999) {
+      showToast('Maximum limit of 999 sets reached');
+      return;
+    }
+
     const submitBtn = modal.querySelector('#submitSetBtn');
     const submitText = modal.querySelector('#submitSetText');
     submitBtn.disabled = true;
     submitText.innerHTML = '<span class="spinner"></span>';
 
     const setName = modal.querySelector('#setNameInput').value;
-    if (!window.ApiClient?.getToken?.()) {
-      submitBtn.disabled = false;
-      submitText.textContent = 'Add Set';
-      showToast('Please log in to create sets');
-      return;
-    }
+    const setId = 'set_' + Date.now();
 
-    try {
-      const desc = buildSubjectDescription(
-        currentSubject?.subject_name || SUBJECT_FALLBACK.name,
-        currentSubject?.subject_icon || SUBJECT_FALLBACK.icon
-      );
-      const created = await window.ApiClient.createSet({
-        title: setName,
-        description: desc,
-        is_public: false
-      });
+    const result = await window.dataSdk.create({
+      type: 'set',
+      subject_id: currentSubject.subject_id,
+      subject_name: '',
+      subject_icon: '',
+      set_id: setId,
+      set_name: setName,
+      question: '',
+      answer: '',
+      created_at: new Date().toISOString()
+    });
 
+    if (result.isOk) {
       modal.remove();
-
-      await syncDataFromApi();
-
-      if (created?.id) {
-        currentSet = getSetsForSubject(currentSubject.subject_id).find(s => s.set_id === created.id) || currentSet;
-      }
-    } catch (error) {
-      console.error('Failed to add set', error);
+    } else {
       submitBtn.disabled = false;
       submitText.textContent = 'Add Set';
       showToast('Failed to add set. Please try again.');
@@ -8378,6 +8150,11 @@ function showAddCardModal() {
   modal.querySelector('#addCardForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
+    if (allData.filter(d => d.type === 'card').length >= 999) {
+      showToast('Maximum limit of 999 cards reached');
+      return;
+    }
+
     const submitBtn = modal.querySelector('#submitCardBtn');
     const submitText = modal.querySelector('#submitCardText');
     submitBtn.disabled = true;
@@ -8386,26 +8163,22 @@ function showAddCardModal() {
     const question = modal.querySelector('#questionInput').value;
     const answer = modal.querySelector('#answerInput').value;
 
-    if (!window.ApiClient?.getToken?.()) {
-      submitBtn.disabled = false;
-      submitText.textContent = 'Add Card';
-      showToast('Please log in to add cards');
-      return;
-    }
+    const result = await window.dataSdk.create({
+      type: 'card',
+      subject_id: currentSubject.subject_id,
+      subject_name: currentSubject.subject_name,
+      subject_icon: currentSubject.subject_icon,
+      set_id: currentSet.set_id,
+      set_name: currentSet.set_name,
+      question: question,
+      answer: answer,
+      created_at: new Date().toISOString()
+    });
 
-    try {
-      const detail = await window.ApiClient.getSet(currentSet.set_id);
-      const existing = detail?.cards || [];
-      const payload = [
-        ...existing.map(c => ({ id: c.id, question: c.question, answer: c.answer })),
-        { question, answer }
-      ];
 
-      await window.ApiClient.upsertCards(currentSet.set_id, payload);
+    if (result.isOk) {
       modal.remove();
-      await syncDataFromApi();
-    } catch (error) {
-      console.error('Failed to add card', error);
+    } else {
       submitBtn.disabled = false;
       submitText.textContent = 'Add Card';
       showToast('Failed to add card. Please try again.');
@@ -8421,11 +8194,6 @@ async function generateCardsWithAI(topic, count) {
 
   if (!currentSet?.set_id) {
     showToast("No set selected");
-    return false;
-  }
-
-  if (!window.ApiClient?.getToken?.()) {
-    showToast("Please log in to add cards");
     return false;
   }
 
@@ -8448,18 +8216,28 @@ async function generateCardsWithAI(topic, count) {
       throw new Error("Invalid AI response");
     }
 
-    const detail = await window.ApiClient.getSet(currentSet.set_id);
-    const existing = detail?.cards || [];
-    const merged = [
-      ...existing.map(c => ({ id: c.id, question: c.question, answer: c.answer })),
-      ...json.cards.map(card => ({ question: card.question, answer: card.answer }))
-    ];
+    // Create all cards sequentially
+    for (const card of json.cards) {
+      const result = await window.dataSdk.create({
+        type: "card",
+        subject_id: currentSubject?.subject_id || "",
+        subject_name: currentSubject?.subject_name || "",
+        subject_icon: currentSubject?.subject_icon || "",
+        set_id: currentSet.set_id,
+        set_name: currentSet.set_name || "",
+        question: card.question,
+        answer: card.answer,
+        created_at: new Date().toISOString()
+      });
 
-    await window.ApiClient.upsertCards(currentSet.set_id, merged);
+      if (result.isError) {
+        throw new Error("Failed to create card");
+      }
+    }
 
+    // UI update happens in onDataChanged when data changes are detected
     hideAILoading();
     showToast(`Successfully generated ${json.cards.length} cards`);
-    await syncDataFromApi();
     return true;
 
   } catch (error) {
@@ -8535,7 +8313,7 @@ function showAIGenerateModal() {
 
 
 async function loadAllData() {
-  await syncDataFromApi();
+  allData = window.dataSdk.getAll();
 }
 
 let aiLoadingEl = null;
@@ -8677,29 +8455,16 @@ function attachEventListeners() {
       const subjectId = btn.dataset.subjectId;
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
-      if (!window.ApiClient?.getToken?.()) {
-        showToast("Please log in to delete subjects");
-        btn.disabled = false;
-        btn.innerHTML = '×';
-        return;
-      }
-
-      const setsToDelete = getSetsForSubject(subjectId);
-
-      try {
-        for (const set of setsToDelete) {
-          await window.ApiClient.deleteSet(set.set_id);
-        }
-        await syncDataFromApi();
-        if (currentSubject?.subject_id === subjectId) {
-          currentSubject = null;
-          currentView = "subjects";
-        }
-      } catch (error) {
-        console.error("Failed to delete subject", error);
-        showToast("Failed to delete subject");
-        btn.disabled = false;
-        btn.innerHTML = '×';
+      const itemsToDelete = allData.filter(d =>
+        (d.type === "subject" && d.subject_id === subjectId) ||
+        (d.type === "set" && d.subject_id === subjectId) ||
+        (d.type === "card" && allData.some(s => s.type === "set" && s.set_id === d.set_id && s.subject_id === subjectId))
+      );
+      for (const item of itemsToDelete) await window.dataSdk.delete({ id: item.id }, true);
+      window.dataSdk.init(dataHandler);
+      if (currentSubject?.subject_id === subjectId) {
+        currentSubject = null;
+        currentView = "subjects";
       }
     };
   });
@@ -8710,23 +8475,9 @@ function attachEventListeners() {
       const setId = btn.dataset.setId;
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
-      if (!window.ApiClient?.getToken?.()) {
-        showToast("Please log in to delete sets");
-        btn.disabled = false;
-        btn.innerHTML = '×';
-        return;
-      }
-
-      try {
-        await window.ApiClient.deleteSet(setId);
-        await syncDataFromApi();
-        renderApp();
-      } catch (error) {
-        console.error("Failed to delete set", error);
-        showToast("Failed to delete set");
-        btn.disabled = false;
-        btn.innerHTML = '×';
-      }
+      const itemsToDelete = allData.filter(d => (d.type === "set" && d.set_id === setId) || (d.type === "card" && d.set_id === setId));
+      for (const item of itemsToDelete) await window.dataSdk.delete({ id: item.id });
+      renderApp();
     };
   });
 
@@ -8736,37 +8487,8 @@ function attachEventListeners() {
       const id = btn.dataset.id;
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>';
-      if (!window.ApiClient?.getToken?.()) {
-        showToast("Please log in to delete cards");
-        btn.disabled = false;
-        btn.innerHTML = '×';
-        return;
-      }
-
-      try {
-        const setId = currentSet?.set_id;
-        if (!setId) {
-          showToast("No set selected");
-          btn.disabled = false;
-          btn.innerHTML = '×';
-          return;
-        }
-
-        const detail = await window.ApiClient.getSet(setId);
-        const remaining = (detail?.cards || []).filter(c => c.id !== id);
-        await window.ApiClient.upsertCards(setId, remaining.map(c => ({
-          id: c.id,
-          question: c.question,
-          answer: c.answer
-        })));
-        await syncDataFromApi();
-        renderApp();
-      } catch (error) {
-        console.error("Failed to delete card", error);
-        showToast("Failed to delete card");
-        btn.disabled = false;
-        btn.innerHTML = '×';
-      }
+      await window.dataSdk.delete({ id });
+      renderApp();
     };
   });
 
@@ -8969,8 +8691,12 @@ function mapToEditPanelValues(cfg) {
     });
   }
 
-  renderAuthPanel();
-  await syncDataFromApi();
+  if (window.dataSdk) {
+    const initResult = await window.dataSdk.init(dataHandler);
+    if (!initResult.isOk) {
+      console.error('Failed to initialize data SDK');
+    }
+  }
 })();
 
 window.addEventListener("beforeinstallprompt", e => {
@@ -9015,4 +8741,5 @@ if ("serviceWorker" in navigator) {
       });
   });
 }
+
 

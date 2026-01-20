@@ -1,14 +1,12 @@
 {
-  "name": "ec-classroom-backend",
+  "name": "ec-eclassroom-backend",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "start": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "publish": "wrangler publish"
   },
   "devDependencies": {
-    "wrangler": "^3.90.0"
+    "wrangler": "^4.0.0"
   }
 }

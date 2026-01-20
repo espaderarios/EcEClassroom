@@ -1,0 +1,24 @@
+Quick Reference Guide
+
+Keyboard Shortcuts:
+- Ctrl+C: Copy
+- Ctrl+V: Paste
+- Ctrl+Z: Undo
+- Ctrl+Y: Redo
+
+Common File Extensions:
+- .txt: Text file
+- .pdf: Portable Document Format
+- .docx: Microsoft Word document
+- .xlsx: Microsoft Excel spreadsheet
+- .jpg: JPEG image
+- .png: Portable Network Graphics
+
+Basic HTML Tags:
+- <h1>: Main heading
+- <p>: Paragraph
+- <a>: Link
+- <img>: Image
+- <div>: Container
+
+This is a compact reference guide for quick lookups.

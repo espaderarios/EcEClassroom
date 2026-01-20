@@ -1,0 +1,77 @@
+Basic Electronics Concepts
+
+Introduction to Electronics
+
+What is Electronics?
+Electronics is the branch of physics and technology that deals with the behavior and control of electrons and the electrical devices that use them.
+
+Basic Components:
+
+1. Resistor (R)
+   - Purpose: Limits current flow
+   - Symbol: ---
+   - Unit: Ohms (Ω)
+
+2. Capacitor (C)
+   - Purpose: Stores electrical charge
+   - Symbol: --|--
+   - Unit: Farads (F)
+
+3. Inductor (L)
+   - Purpose: Stores energy in magnetic field
+   - Symbol: ⥮⥮⥮
+   - Unit: Henry (H)
+
+4. Diode (D)
+   - Purpose: Allows current in one direction
+   - Symbol: >|
+   - Types: Rectifier, Zener, LED
+
+Ohm's Law:
+V = I × R
+Where:
+- V = Voltage (Volts)
+- I = Current (Amperes)
+- R = Resistance (Ohms)
+
+Power Formula:
+P = V × I
+Where:
+- P = Power (Watts)
+
+Series Circuits:
+- Total Resistance: R_total = R1 + R2 + R3 + ...
+- Same current through all components
+- Voltage divides among components
+
+Parallel Circuits:
+- Total Resistance: 1/R_total = 1/R1 + 1/R2 + 1/R3 + ...
+- Same voltage across all components
+- Current divides among components
+
+Digital Logic:
+- 0 = Low voltage (0V)
+- 1 = High voltage (typically 3.3V or 5V)
+
+Basic Logic Gates:
+- AND: Output is 1 only if all inputs are 1
+- OR: Output is 1 if any input is 1
+- NOT: Output is opposite of input
+- NAND: NOT of AND
+- NOR: NOT of OR
+- XOR: Output is 1 if inputs are different
+
+Safety Precautions:
+1. Always discharge capacitors before working
+2. Use proper tools and equipment
+3. Work with power off when possible
+4. Use appropriate protective gear
+5. Know location of emergency equipment
+
+Common Tools:
+- Multimeter: Measures voltage, current, resistance
+- Oscilloscope: Displays voltage waveforms over time
+- Soldering iron: For making permanent connections
+- Breadboard: For prototyping circuits
+
+This guide provides basic concepts for understanding electronics. For more advanced topics, consult additional resources or take formal courses.

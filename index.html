@@ -1,24 +1,312 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flashcard Study</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css" />
-</head>
-<body>
-  <main class="app-shell">
-    <div id="app">Loading…</div>
-  </main>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flashcard Study App</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="styles.css">
+<script>
+(function () {
+  var config = {};
 
-  <div id="toast-container" class="toast-container" aria-live="polite"></div>
-  <button id="installAppBtn" aria-label="Install app">Install App</button>
+  window.elementSdk = {
+    init: function (api) {
+      
+      if (api && api.defaultConfig) {
+        config = Object.assign({}, api.defaultConfig);
+      } else {
+        config = {};
+      }
 
-  <script src="./js/other/api.js" defer></script>
-  <script src="./js/other/utility.js" defer></script>
-  <script src="./app.js" defer></script>
-</body>
-</html>
+    
+      window.__elementApi = api;
+    },
+
+    setConfig: function (newConfig) {
+      config = Object.assign({}, config, newConfig);
+
+      
+      if (
+        window.__elementApi &&
+        typeof window.__elementApi.onConfigChange === "function"
+      ) {
+        window.__elementApi.onConfigChange(config);
+      }
+    },
+
+    getConfig: function () {
+      return Object.assign({}, config);
+    }
+  };
+})();
+</script>
+
+<script>
+(function () {
+
+
+window.getUser = function () {
+  return JSON.parse(localStorage.getItem("user"));
+};
+
+window.setUser = function (user) {
+  localStorage.setItem("user", JSON.stringify(user));
+};
+
+window.logoutUser = function () {
+  localStorage.removeItem("user");
+};
+
+if (!getUser()) {
+  const role = prompt("Enter role: teacher or student", "student");
+
+  setUser({
+    id: crypto.randomUUID(),
+    role: role === "teacher" ? "teacher" : "student",
+    name: role === "teacher" ? "Teacher Demo" : "Student Demo"
+  });
+}
+
+  function getStorageKey() {
+    const user = getUser();
+    return user ? `flashcards_${user.id}` : "flashcards_guest";
+  }
+
+  var handler = null;
+  var data = [];
+
+  function load() {
+    try {
+      var stored = localStorage.getItem(getStorageKey());
+      data = stored ? JSON.parse(stored) : [];
+    } catch {
+      data = [];
+    }
+  }
+
+  function save() {
+    localStorage.setItem(getStorageKey(), JSON.stringify(data));
+  }
+
+  function notify() {
+    if (handler && typeof handler.onDataChanged === "function") {
+      handler.onDataChanged(data.slice());
+    }
+  }
+
+  function generateId() {
+    return (
+      "id_" +
+      Date.now() +
+      "_" +
+      Math.random().toString(36).slice(2, 8)
+    );
+  }
+
+  window.dataSdk = {
+    init: function (h) {
+      handler = h;
+      load();
+      notify();
+      return Promise.resolve({ isOk: true });
+    },
+
+    create: function (item) {
+      var newItem = Object.assign({}, item, {
+        id: generateId()
+      });
+
+      data.push(newItem);
+      save();
+      notify();
+
+      return Promise.resolve({ isOk: true, item: newItem });
+    },
+
+    delete: function (opts, silent) {
+      if (!opts || !opts.id) {
+        return Promise.resolve({ isOk: false });
+      }
+
+      data = data.filter(d => d.id !== opts.id);
+      save();
+      if (!silent) notify();
+
+      return Promise.resolve({ isOk: true });
+    },
+
+    update: function (updatedItem) {
+      if (!updatedItem || !updatedItem.id) {
+        return Promise.resolve({ isOk: false });
+      }
+
+      data = data.map(d =>
+        d.id === updatedItem.id ? updatedItem : d
+      );
+
+      save();
+      notify();
+
+      return Promise.resolve({ isOk: true });
+    },
+
+    getAll: function () {
+      return data.slice();
+    }
+  };
+
+})();
+</script>
+
+<!-- PWA Installation -->
+<script>
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallButton();
+});
+
+function showInstallButton() {
+  const installBtn = document.createElement('button');
+  installBtn.id = 'pwa-install-btn';
+  installBtn.innerHTML = '📱 Install App';
+  installBtn.className = 'pwa-install-btn';
+  installBtn.onclick = installPWA;
+  document.body.appendChild(installBtn);
+}
+
+async function installPWA() {
+  if (!deferredPrompt) return;
+
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+
+  if (outcome === 'accepted') {
+    console.log('User accepted the install prompt');
+  }
+
+  deferredPrompt = null;
+  document.getElementById('pwa-install-btn')?.remove();
+}
+
+window.addEventListener('appinstalled', () => {
+  console.log('PWA was installed');
+  deferredPrompt = null;
+});
+
+// Network status indicator
+function updateNetworkStatus() {
+  // Ensure DOM is ready
+  if (!document.body) {
+    setTimeout(updateNetworkStatus, 100);
+    return;
+  }
+
+  const statusIndicator = document.getElementById('network-status');
+  if (!statusIndicator) {
+    const indicator = document.createElement('div');
+    indicator.id = 'network-status';
+    indicator.className = 'network-status';
+    document.body.appendChild(indicator);
+  }
+
+  const statusEl = document.getElementById('network-status');
+  
+  // Always show online since service worker has cached everything
+  statusEl.innerHTML = '🟢 Cached Offline Mode';
+  statusEl.className = 'network-status online';
+}
+
+// Remove network status listeners - rely on service worker caching instead
+
+// Wait for DOM to be ready before calling updateNetworkStatus
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', updateNetworkStatus);
+} else {
+  updateNetworkStatus();
+}
+</script>
+
+<!-- Offline Fallback -->
+<div id="offline-message" class="offline-message" style="display: none;">
+  <div class="offline-content">
+    <h2>🔌 You're Offline</h2>
+    <p>You can continue studying with your downloaded content. Some features may be limited.</p>
+    <button onclick="document.getElementById('offline-message').style.display='none'" class="btn-primary">
+      Continue Studying
+    </button>
+  </div>
+</div>
+
+<script>
+window.addEventListener('offline', () => {
+  document.getElementById('offline-message').style.display = 'flex';
+});
+
+window.addEventListener('online', () => {
+  document.getElementById('offline-message').style.display = 'none';
+});
+
+// Cache status indicator
+function showCacheStatus(message, type = 'info') {
+  const statusEl = document.getElementById('cache-status');
+  if (!statusEl) {
+    const el = document.createElement('div');
+    el.id = 'cache-status';
+    el.className = 'cache-status';
+    document.body.appendChild(el);
+  }
+
+  const el = document.getElementById('cache-status');
+  el.textContent = message;
+  el.className = `cache-status ${type}`;
+
+  setTimeout(() => {
+    el.style.display = 'none';
+  }, 3000);
+}
+
+// Listen for cache updates
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', event => {
+    if (event.data && event.data.type === 'cache-status') {
+      showCacheStatus(event.data.message, event.data.status);
+    }
+  });
+}
+</script>
+
+  <script src="tailwindcss.js"></script>
+
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="h-full w-full"></div>
+  <div id="toast-container" class="toast-container"></div>
+    <div id="aiLoading" class="loading-overlay">
+  <div class="loading"></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="app.js"></script>
+
+<button id="openSettingsBtn" class="settings-fab">
+  <img src="icons/settings.svg" class="icon md" alt="settings" />
+</button>
+
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js');
+}
+</script>
+
+ </body>
+ </html>

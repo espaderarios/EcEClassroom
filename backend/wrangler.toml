@@ -1,12 +1,15 @@
-name = "ec-classroom-backend"
+name = "ec-eclassroom-backend"
 main = "src/index.js"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-01-21"
+type = "javascript"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "ec_classroom_db"
-database_id = "00000000-0000-0000-0000-000000000000" # replace with your D1 database id
+# Optional: set your Cloudflare account_id and environment when ready
+# account_id = "YOUR_ACCOUNT_ID"
+# workers_dev = true
 
-[vars]
-# Set at runtime; override via wrangler secrets
-# JWT_SECRET = "change-me"
+# To enable the OpenAI-powered AI endpoint, add your secret with:
+#
+#   cd backend
+#   wrangler secret put OPENAI_API_KEY
+#
+# (Avoid placing API keys directly in this file; use `wrangler secret`.)

@@ -1,47 +1,102 @@
-# EcEClassroom Cloudflare Worker Backend
+# ec-eclassroom backend (Cloudflare Workers)
 
-A minimal Cloudflare Worker + D1 API to support authenticated saving while allowing anonymous browsing.
+This folder contains a lightweight Cloudflare Workers backend scaffold for local development.
 
-## Features
-- Users: register/login with JWT (HS256) and PBKDF2 password hashing.
-- Flashcard sets: list public sets; auth users can create/update/delete their own sets and cards.
-- Progress: auth users can save per-set progress blobs.
-- CORS enabled for browser calls.
+Endpoints provided (in-memory store):
+- `GET /health` or `/` — basic health check
+- `POST /api/generate-cards` — body: `{ text, count }` returns mock cards
+- `GET|POST|PUT|DELETE /api/classes` — simple class CRUD
+- `GET|POST|PUT|DELETE /api/quizzes` — simple quiz CRUD
 
-## API (JSON)
-Base path: `/`
+- `POST /api/ai/generate` — AI-powered generator (requires `OPENAI_API_KEY` secret)
+ - `POST /api/groq` — Proxy GROQ queries to Sanity (requires `SANITY_TOKEN` secret)
 
-Auth
-- `POST /auth/register` { email, password }
-- `POST /auth/login` { email, password }
+Notes:
+- This implementation uses an in-memory store (`STORE`), so data is ephemeral.
+- For production, bind a KV namespace, D1, or Durable Objects and update `wrangler.toml` and `src/index.js` to use the binding.
 
-Sets (public + personal)
-- `GET /sets?public=1` list public sets
-- `GET /sets` list public + your sets (if auth header present)
-- `POST /sets` (auth) { title, description?, is_public?, cards?: [{question,answer}] }
-- `GET /sets/:id` (public if set.is_public, otherwise auth owner)
-- `PUT /sets/:id` (auth owner) { title?, description?, is_public? }
-- `DELETE /sets/:id` (auth owner)
-- `PUT /sets/:id/cards` (auth owner) { cards: [{ id?, question, answer }] } upsert by id
+Local development
 
-Progress (auth)
-- `PUT /sets/:id/progress` { data }
-- `GET /sets/:id/progress`
+1. Install Wrangler (if not installed):
 
-Auth header: `Authorization: Bearer <token>`
+```bash
+npm install -g wrangler
+```
 
-## Local dev
-1) Install deps: `npm install`
-2) Create D1 DB: `npx wrangler d1 create ec_classroom_db` and copy `database_id` into `wrangler.toml`.
-3) Run migrations: `npx wrangler d1 migrations apply ec_classroom_db --local` or `wrangler d1 execute` using `migrations/0001_init.sql`.
-4) Set secret: `npx wrangler secret put JWT_SECRET`.
-5) Dev server: `npm run dev`
+2. From this folder run the dev server:
 
-## Deploy
-- `npm run deploy`
-- Ensure `JWT_SECRET` secret and D1 binding exist in the deployed environment.
+```bash
+cd backend
+wrangler dev
+```
 
-## Notes
-- Passwords use PBKDF2-SHA256 (120k iterations) with per-user salt.
-- JWT expiry: 7 days (`exp`).
-- CORS is open (`*`). Harden in production if needed.
+3. To publish, set `account_id` in `wrangler.toml` and run:
+
+```bash
+wrangler publish
+```
+
+AI endpoint setup
+
+1. Add your OpenAI API key as a secret (do not store in repository):
+
+```bash
+cd backend
+wrangler secret put OPENAI_API_KEY
+```
+
+2. Example request to AI endpoint:
+
+```bash
+curl -X POST https://<your-worker-url>/api/ai/generate \
+	-H "Content-Type: application/json" \
+	-d '{"prompt":"Summarize resistors, capacitors, and basic circuit concepts into 5 flashcards.", "count":5}'
+```
+
+If the secret is not configured the endpoint returns an error and you can instead use `/api/generate-cards` which is a local mock generator.
+
+GROQ proxy setup
+
+1. Add your Sanity token as a secret (do not store in repository):
+
+```bash
+cd backend
+wrangler secret put SANITY_TOKEN
+```
+
+2. Example request to GROQ proxy:
+
+```bash
+curl -X POST https://<your-worker-url>/api/groq \
+	-H "Content-Type: application/json" \
+	-d '{"projectId":"yourProjectId","dataset":"production","query":"*[] | order(_createdAt desc)[0..9]"}'
+```
+
+The proxy forwards your GROQ `query` (and optional `params`) to Sanity and returns the raw Sanity response. Keep the `SANITY_TOKEN` secret private.
+
+Production publish (Cloudflare)
+
+1. Create a Cloudflare API Token with permissions to manage Workers or use your Global API Key and obtain your `account_id`.
+
+2. Add repository secrets in GitHub (Repository Settings → Secrets):
+
+	- `CF_API_TOKEN` — Cloudflare API token
+	- `CF_ACCOUNT_ID` — your Cloudflare account id
+	- `SANITY_TOKEN` — your Sanity read token (if using GROQ proxy)
+	- `OPENAI_API_KEY` — (optional) OpenAI key for AI endpoint
+
+3. The included GitHub Actions workflow will publish the Worker automatically when you push to the `main` branch. The workflow uses `npx wrangler publish` from the `backend` folder.
+
+4. After publishing, set the frontend to use your worker URL (example):
+
+```js
+localStorage.setItem('backendUrl', 'https://<your-worker-subdomain>.workers.dev');
+// or call setBackendUrl('https://<your-worker-subdomain>.workers.dev') in console
+```
+
+If you prefer manual publishing you can run locally:
+
+```bash
+cd backend
+wrangler publish
+```

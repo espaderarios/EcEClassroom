@@ -1,0 +1,24 @@
+Flashcard Study Guide
+
+This is a comprehensive study guide for using the flashcard application effectively.
+
+Chapter 1: Getting Started
+- Creating your first subject
+- Adding flashcard sets
+- Basic navigation
+
+Chapter 2: Study Techniques
+- Spaced repetition
+- Active recall
+- Regular review sessions
+
+Chapter 3: Quiz Features
+- Multiple choice questions
+- Progress tracking
+- Score history
+
+Tips for Success:
+1. Study regularly
+2. Use active recall
+3. Review difficult cards more often
+4. Take breaks to avoid burnout

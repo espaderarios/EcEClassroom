@@ -1,0 +1,64 @@
+Advanced Mathematics Guide
+
+Calculus Fundamentals
+
+Limits and Continuity:
+A function f(x) is continuous at x = a if:
+1. f(a) exists
+2. lim(x→a) f(x) exists
+3. lim(x→a) f(x) = f(a)
+
+Derivative Rules:
+1. Power Rule: d/dx[x^n] = n*x^(n-1)
+2. Product Rule: d/dx[f*g] = f'*g + f*g'
+3. Quotient Rule: d/dx[f/g] = (f'*g - f*g')/g²
+4. Chain Rule: d/dx[f(g(x))] = f'(g(x)) * g'(x)
+
+Integration Techniques:
+1. Power Rule: ∫x^n dx = x^(n+1)/(n+1) + C
+2. Substitution: ∫f(g(x))g'(x) dx = ∫f(u) du
+3. Integration by Parts: ∫u dv = uv - ∫v du
+4. Partial Fractions: For rational functions
+
+Linear Algebra:
+Vector Operations:
+- Addition: (a,b) + (c,d) = (a+c, b+d)
+- Scalar Multiplication: k(a,b) = (ka, kb)
+- Dot Product: (a,b) · (c,d) = ac + bd
+
+Matrix Operations:
+- Addition: A + B = [a_ij + b_ij]
+- Multiplication: (AB)_ij = Σ_k a_ik * b_kj
+- Transpose: (A^T)_ij = a_ji
+- Inverse: A * A^(-1) = I
+
+Differential Equations:
+First Order:
+- Separable: dy/dx = f(x)g(y) → ∫g(y)dy = ∫f(x)dx
+- Linear: dy/dx + P(x)y = Q(x)
+- Exact: M(x,y)dx + N(x,y)dy = 0
+
+Second Order:
+- Homogeneous: ay'' + by' + cy = 0
+- Particular Solution: Assume form based on right-hand side
+- Variation of Parameters
+
+Probability Theory:
+Basic Concepts:
+- Sample Space: Set of all possible outcomes
+- Event: Subset of sample space
+- Probability: P(E) = |E| / |S| for equally likely outcomes
+
+Conditional Probability:
+P(A|B) = P(A∩B) / P(B)
+
+Bayes' Theorem:
+P(A|B) = [P(B|A)P(A)] / P(B)
+
+Random Variables:
+- Discrete: Countable outcomes
+- Continuous: Uncountable outcomes
+- Expected Value: E[X] = Σx*P(X=x) or ∫x*f(x)dx
+- Variance: Var(X) = E[X²] - (E[X])²
+
+This guide covers essential concepts for advanced mathematics. Practice regularly and work through examples to master these topics.
