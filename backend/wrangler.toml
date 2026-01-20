@@ -1,0 +1,12 @@
+name = "ec-classroom-backend"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ec_classroom_db"
+database_id = "00000000-0000-0000-0000-000000000000" # replace with your D1 database id
+
+[vars]
+# Set at runtime; override via wrangler secrets
+# JWT_SECRET = "change-me"
