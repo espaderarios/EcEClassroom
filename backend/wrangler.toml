@@ -1,7 +1,6 @@
 name = "ec-eclassroom-backend"
 main = "src/index.js"
 compatibility_date = "2026-01-21"
-type = "javascript"
 
 # Optional: set your Cloudflare account_id and environment when ready
 # account_id = "YOUR_ACCOUNT_ID"
