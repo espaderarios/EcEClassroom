@@ -187,8 +187,9 @@ function getGradeColor(grade) {
 }
 
 function getStudentQuizAttempts(studentId, quizId) {
-  const scores = JSON.parse(localStorage.getItem('studentQuizScores') || '{}');
-  return Object.values(scores).filter(s => s.studentId === studentId && s.quizId === quizId) || [];
+  const scores = JSON.parse(localStorage.getItem('studentQuizScores') || '[]');
+  if (!Array.isArray(scores)) return [];
+  return scores.filter(s => s && s.studentId === studentId && s.quizId === quizId);
 }
 
 function getQuizAttemptLimit(classId, quizId) {
@@ -4612,7 +4613,15 @@ function renderStudentClasses() {
                         const attemptLimit = getQuizAttemptLimit(classData.id, quiz.id);
                         const canTakeQuiz = attempts.length < attemptLimit;
                         const bestScore = attempts.length > 0 
-                          ? Math.max(...attempts.map(a => (a.score / a.totalQuestions) * 100))
+                          ? Math.max(
+                              ...attempts
+                                .map(a => {
+                                  const total = a.totalQuestions || a.total || 0;
+                                  const score = a.score || 0;
+                                  return total > 0 ? (score / total) * 100 : Number.NEGATIVE_INFINITY;
+                                })
+                                .filter(v => Number.isFinite(v))
+                            )
                           : null;
                         
                         return `
