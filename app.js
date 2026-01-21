@@ -4012,7 +4012,7 @@ function renderStudentProfile() {
       <h2 class="text-2xl font-bold text-center">Student Profile</h2>
 
       <div>
-        <label class="block text-sm font-semibold mb-1">Name</label>
+        <label for="profile-name" class="block text-sm font-semibold mb-1">Name</label>
         <input id="profile-name"
                class="w-full p-3 border rounded"
                style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
@@ -4021,7 +4021,7 @@ function renderStudentProfile() {
       </div>
 
       <div>
-        <label class="block text-sm font-semibold mb-1">Student ID</label>
+        <label for="profile-student-id" class="block text-sm font-semibold mb-1">Student ID</label>
         <input id="profile-student-id"
                class="w-full p-3 border rounded"
                style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
@@ -4030,7 +4030,7 @@ function renderStudentProfile() {
       </div>
 
       <div>
-        <label class="block text-sm font-semibold mb-1">Email</label>
+        <label for="profile-email" class="block text-sm font-semibold mb-1">Email</label>
         <input id="profile-email"
                type="email"
                class="w-full p-3 border rounded"
@@ -4040,7 +4040,7 @@ function renderStudentProfile() {
       </div>
 
       <div>
-        <label class="block text-sm font-semibold mb-1">School</label>
+        <label for="profile-school" class="block text-sm font-semibold mb-1">School</label>
         <input id="profile-school"
                class="w-full p-3 border rounded"
                style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
@@ -4049,12 +4049,12 @@ function renderStudentProfile() {
       </div>
 
       <div>
-        <label class="block text-sm font-semibold mb-1">Grade</label>
+        <label for="profile-grade" class="block text-sm font-semibold mb-1">Grade</label>
         <input id="profile-grade"
                class="w-full p-3 border rounded"
                style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
                placeholder="e.g., 10th Grade"
-               value="${profile.grade || ''}">
+               value="${profile.grade || ''}"
       </div>
 
       <div class="flex justify-center gap-4 pt-2">
@@ -4327,7 +4327,7 @@ function renderTeacherProfile() {
       <h2 class="text-2xl font-bold text-center">Teacher Profile</h2>
 
       <div>
-        <label class="block text-sm font-semibold mb-1">Name</label>
+        <label for="teacher-name" class="block text-sm font-semibold mb-1">Name</label>
         <input id="teacher-name"
           class="w-full p-3 border rounded"
           style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
@@ -4336,7 +4336,7 @@ function renderTeacherProfile() {
       </div>
 
       <div>
-        <label class="block text-sm font-semibold mb-1">Email</label>
+        <label for="teacher-email" class="block text-sm font-semibold mb-1">Email</label>
         <input id="teacher-email"
           type="email"
           class="w-full p-3 border rounded"
@@ -4346,7 +4346,7 @@ function renderTeacherProfile() {
       </div>
 
       <div>
-        <label class="block text-sm font-semibold mb-1">Subject</label>
+        <label for="teacher-subject" class="block text-sm font-semibold mb-1">Subject</label>
         <input id="teacher-subject"
           class="w-full p-3 border rounded"
           style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
@@ -4355,12 +4355,12 @@ function renderTeacherProfile() {
       </div>
 
       <div>
-        <label class="block text-sm font-semibold mb-1">School</label>
+        <label for="teacher-school" class="block text-sm font-semibold mb-1">School</label>
         <input id="teacher-school"
           class="w-full p-3 border rounded"
           style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
           placeholder="Your school name"
-          value="${t.school || ""}">
+          value="${t.school || ""}"
       </div>
 
       <button class="mt-4 w-full px-6 py-3 rounded font-semibold" 
@@ -4408,7 +4408,7 @@ function renderTeacherClasses() {
           <h3 class="text-xl font-semibold">Create New Class</h3>
           
           <div>
-            <label class="block text-sm font-semibold mb-1">Class Name *</label>
+            <label for="new-class-name" class="block text-sm font-semibold mb-1">Class Name *</label>
             <input id="new-class-name" 
               class="w-full p-3 border rounded"
               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
@@ -4417,7 +4417,7 @@ function renderTeacherClasses() {
           
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-semibold mb-1">Subject</label>
+              <label for="new-class-subject" class="block text-sm font-semibold mb-1">Subject</label>
               <input id="new-class-subject" 
                 class="w-full p-3 border rounded"
                 style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
@@ -4425,7 +4425,7 @@ function renderTeacherClasses() {
             </div>
             
             <div>
-              <label class="block text-sm font-semibold mb-1">Grade Level</label>
+              <label for="new-class-grade" class="block text-sm font-semibold mb-1">Grade Level</label>
               <input id="new-class-grade" 
                 class="w-full p-3 border rounded"
                 style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
@@ -4434,7 +4434,7 @@ function renderTeacherClasses() {
           </div>
           
           <div>
-            <label class="block text-sm font-semibold mb-1">Description</label>
+            <label for="new-class-description" class="block text-sm font-semibold mb-1">Description</label>
             <textarea id="new-class-description" 
               class="w-full p-3 border rounded"
               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
@@ -4661,18 +4661,35 @@ function renderStudentClasses() {
 
 
 function renderTeacherQuizList() {
-  const teacherQuizzes = getTeacherQuizzes();
+  // Note: This function itself is sync but calls async operation
+  // The quizzes will be loaded from localStorage (already synced)
+  const user = getUser();
+  if (!user) return '<p style="color: var(--secondary-text);">Please log in to view quizzes.</p>';
+  
+  const key = `teacher_quizzes_${user.id}`;
+  let teacherQuizzes = JSON.parse(localStorage.getItem(key) || "[]");
+  
+  // Deduplicate on render as well
+  const seen = new Set();
+  teacherQuizzes = teacherQuizzes.filter(q => {
+    const id = q.id || q.quizId;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 
   const quizListHTML = teacherQuizzes.length
-    ? teacherQuizzes.map(q => `
+    ? teacherQuizzes.map(q => {
+        const quizId = q.quizId || q.id;
+        return `
         <div class="p-4 rounded-xl flex justify-between items-center" style="background: var(--card-bg);">
           <div>
             <div style="font-weight:600; color: var(--text);">${q.title}</div>
-            <code style="font-size:12px; opacity:.7; color: var(--secondary-text);">${q.quizId}</code>
+            <code style="font-size:12px; opacity:.7; color: var(--secondary-text);">${quizId}</code>
           </div>
 <div class="flex flex-wrap gap-2">
   <button 
-    onclick="navigator.clipboard.writeText('${q.quizId}')" 
+    onclick="navigator.clipboard.writeText('${quizId}')" 
     class="px-3 py-1 rounded-full text-sm"
     style="background: var(--primary); color: var(--on-primary, var(--text)); flex-shrink: 1;"
   >
@@ -4680,7 +4697,7 @@ function renderTeacherQuizList() {
   </button>
 
   <button 
-    onclick="editTeacherQuiz('${q.quizId}')" 
+    onclick="editTeacherQuiz('${quizId}')" 
     class="px-3 py-1 rounded-full text-sm"
     style="background: rgba(0,0,0,.08); flex-shrink: 1;"
   >
@@ -4688,7 +4705,7 @@ function renderTeacherQuizList() {
   </button>
 
   <button 
-    onclick="deleteTeacherQuiz('${q.quizId}')" 
+    onclick="deleteTeacherQuiz('${quizId}')" 
     class="px-3 py-1 rounded-full text-sm"
     style="background: rgba(239,68,68,.15); color:#dc2626; flex-shrink: 1;"
   >
@@ -4697,7 +4714,8 @@ function renderTeacherQuizList() {
 </div>
 
         </div>
-      `).join("")
+      `;
+      }).join("")
     : `<p style="color: var(--secondary-text);">No quizzes created yet.</p>`;
 
   const renderQuestionInputs = () => teacherQuestions.map((q, i) => `
@@ -4837,14 +4855,14 @@ function renderTeacherQuizList() {
             <h3 class="text-lg font-semibold mb-4" style="color: var(--text);">📄 Generate Quiz from PDF</h3>
 
             <div class="mb-4">
-              <label class="block text-sm font-medium mb-2">Upload PDF or Document</label>
+              <label for="pdf-file-input" class="block text-sm font-medium mb-2">Upload PDF or Document</label>
               <input type="file" id="pdf-file-input" accept=".pdf,.doc,.docx,.txt"
                      class="w-full px-3 py-2 border rounded-lg"
                      style="background: var(--card-bg); color: var(--text); border: 1px solid var(--border);">
             </div>
 
             <div class="mb-4">
-              <label class="block text-sm font-medium mb-2">Number of Questions</label>
+              <label for="pdf-quiz-count-input" class="block text-sm font-medium mb-2">Number of Questions</label>
               <input id="pdf-quiz-count-input" type="number" min="1" max="50" placeholder="10" value="10"
                      class="w-full px-3 py-2 border rounded-lg"
                      style="background: var(--card-bg); color: var(--text); border: 1px solid var(--border);">
@@ -5161,7 +5179,7 @@ function calculateItemAnalysisForQuiz(quizId) {
     const key = localStorage.key(i);
     if (key === 'teacher-quizzes' || key.startsWith('teacher_quizzes_')) {
       const stored = JSON.parse(localStorage.getItem(key) || '[]');
-      quiz = stored.find(q => q.quizId === quizId);
+      quiz = stored.find(q => (q.quizId === quizId || q.id === quizId));
       if (quiz) break;
     }
   }
@@ -5171,44 +5189,95 @@ function calculateItemAnalysisForQuiz(quizId) {
     return;
   }
   
-  // Get highest score per student for this quiz
+  // Get all attempts for this quiz
   const allScores = JSON.parse(localStorage.getItem('studentQuizScores') || '[]');
-  const studentBestScores = {};
+  const quizAttempts = allScores.filter(s => s.quizId === quizId);
   
-  allScores.filter(s => s.quizId === quizId).forEach(score => {
-    if (!studentBestScores[score.studentId] || score.percentage > studentBestScores[score.studentId].percentage) {
-      studentBestScores[score.studentId] = score;
+  if (quizAttempts.length === 0) {
+    const container = document.getElementById('question-performance');
+    container.innerHTML = `
+      <button onclick="renderQuizSelector()" style="padding: 8px 16px; background: var(--surface-variant); border-radius: 6px; margin-bottom: 15px;">
+        ← Back
+      </button>
+      <p style="color: var(--on-surface-variant); text-align: center; padding: 20px;">No attempts found for this quiz.</p>
+    `;
+    return;
+  }
+  
+  // Get only the highest score per student
+  const studentBestAttempts = {};
+  quizAttempts.forEach(attempt => {
+    const studentId = attempt.studentId;
+    if (!studentBestAttempts[studentId] || attempt.percentage > studentBestAttempts[studentId].percentage) {
+      studentBestAttempts[studentId] = attempt;
     }
   });
   
-  const bestScores = Object.values(studentBestScores);
+  const bestAttempts = Object.values(studentBestAttempts);
   
-  // Calculate per-question statistics
+  // Calculate per-question statistics using only best attempts
   const questionStats = quiz.questions.map((q, index) => {
-    const correctCount = bestScores.filter(s => s.score > index).length;
-    const percentage = Math.round((correctCount / bestScores.length) * 100);
+    let correctCount = 0;
+    let totalAnswers = 0;
+    
+    bestAttempts.forEach(attempt => {
+      if (attempt.answers && attempt.answers[index] !== undefined) {
+        totalAnswers++;
+        // Check if the answer was correct
+        if (attempt.correctAnswers && attempt.correctAnswers[index]) {
+          correctCount++;
+        }
+      }
+    });
+    
+    const percentage = totalAnswers > 0 ? Math.round((correctCount / totalAnswers) * 100) : 0;
     
     return {
       questionNumber: index + 1,
       question: q.question,
       correctCount,
-      totalAnswers: bestScores.length,
+      totalAnswers,
       percentage,
-      difficulty: percentage >= 70 ? 'Easy' : percentage >= 50 ? 'Medium' : 'Hard'
+      difficulty: percentage >= 80 ? 'Easy' : percentage >= 50 ? 'Medium' : 'Hard'
     };
   });
+  
+  // Calculate overall stats
+  const avgScore = Math.round(bestAttempts.reduce((sum, a) => sum + (a.percentage || 0), 0) / bestAttempts.length);
+  const totalStudents = bestAttempts.length;
+  const totalAttempts = quizAttempts.length;
+  const avgDifficulty = (questionStats.reduce((sum, s) => sum + s.percentage, 0) / questionStats.length / 100 * 5).toFixed(1);
+  
+  // Update summary stats
+  const summaryHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="card p-4 text-center">
+        <div class="text-2xl font-bold text-primary mb-2">${avgScore}%</div>
+        <div class="text-sm text-text-muted">Average Score (Best Attempts)</div>
+      </div>
+      <div class="card p-4 text-center">
+        <div class="text-2xl font-bold text-success mb-2">${totalStudents}</div>
+        <div class="text-sm text-text-muted">Students (${totalAttempts} total attempts)</div>
+      </div>
+      <div class="card p-4 text-center">
+        <div class="text-2xl font-bold text-warning mb-2">${avgDifficulty}</div>
+        <div class="text-sm text-text-muted">Avg Difficulty (1-5)</div>
+      </div>
+    </div>
+  `;
   
   // Render results
   const container = document.getElementById('question-performance');
   let html = `
     <button onclick="renderQuizSelector()" style="padding: 8px 16px; background: var(--surface-variant); border-radius: 6px; margin-bottom: 15px;">
-      ← Back
+      ← Back to Quiz List
     </button>
-    <h4 style="font-weight: bold; font-size: 18px; margin-bottom: 15px;">${quizId}</h4>
+    <h4 style="font-weight: bold; font-size: 18px; margin-bottom: 15px;">Analysis for: ${quiz.title || quizId}</h4>
+    <p style="font-size: 12px; color: var(--on-surface-variant); margin-bottom: 15px;">Based on highest score per student</p>
   `;
   
   questionStats.forEach(stat => {
-    const color = stat.percentage >= 70 ? 'var(--success)' : stat.percentage >= 50 ? 'var(--warning)' : 'var(--error)';
+    const color = stat.percentage >= 80 ? 'var(--success)' : stat.percentage >= 50 ? 'var(--warning)' : 'var(--error)';
     
     html += `
       <div class="p-3 rounded-lg mb-2" style="background: var(--surface);">
@@ -5222,7 +5291,7 @@ function calculateItemAnalysisForQuiz(quizId) {
             <div class="font-semibold" style="color: ${color};" data-percent="${stat.percentage}" data-fraction="${stat.correctCount}/${stat.totalAnswers}">
               ${stat.percentage}%
             </div>
-            <div class="text-sm">${stat.correctCount}/${stat.totalAnswers}</div>
+            <div class="text-sm" style="color: var(--on-surface-variant);">${stat.correctCount}/${stat.totalAnswers} correct</div>
           </div>
         </div>
       </div>
@@ -5230,6 +5299,15 @@ function calculateItemAnalysisForQuiz(quizId) {
   });
   
   container.innerHTML = html;
+  
+  // Update the summary section (if it exists in the modal)
+  const modalContent = document.getElementById('item-analysis-modal');
+  if (modalContent) {
+    const summaryContainer = modalContent.querySelector('.grid.grid-cols-1.md\\:grid-cols-3');
+    if (summaryContainer) {
+      summaryContainer.outerHTML = summaryHTML;
+    }
+  }
 }
 
 function exportAnalysis() {
@@ -5319,10 +5397,25 @@ async function generateAIQuiz() {
     }
 
     teacherQuestions = qs.slice(0, count).map(q => {
-      const opts = Array.isArray(q.options) && q.options.length >= 2 ? q.options : ["Option A", "Option B", "Option C", "Option D"];
+      // Clean options: remove any letter prefixes like "A)", "B)", "1.", etc.
+      const cleanOption = (opt) => {
+        if (typeof opt !== 'string') return opt;
+        // Remove patterns like "A) ", "B) ", "1. ", "2. ", etc. from the start
+        return opt.replace(/^[A-Z]\)\s*/i, '').replace(/^\d+\.\s*/, '').trim();
+      };
+      
+      const opts = Array.isArray(q.options) && q.options.length >= 2 
+        ? q.options.map(cleanOption) 
+        : ["Option A", "Option B", "Option C", "Option D"];
+      
+      // Also clean the correct answer
+      const cleanCorrect = cleanOption(q.correct || q.answer || "");
+      
+      // Shuffle the cleaned options
       const options = shuffleArray([...opts]);
 
-      const correctText = (q.correct || q.answer || "").trim().toLowerCase();
+      // Find which option matches the correct answer
+      const correctText = cleanCorrect.trim().toLowerCase();
       let correctIndex = options.findIndex(opt => opt.trim().toLowerCase() === correctText);
       if (correctIndex === -1) correctIndex = 0;
       const correctLetter = String.fromCharCode(65 + correctIndex);
@@ -5443,20 +5536,35 @@ async function editTeacherQuiz(quizId) {
 async function deleteTeacherQuiz(quizId) {
   if (!confirm("Delete this quiz permanently?")) return;
 
+  // Try to delete from backend (may not exist there if created locally)
   try {
-    await fetch(
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const res = await fetch(
       `${getBackendUrl()}/api/quizzes/${quizId}`,
-      { method: "DELETE" }
+      { 
+        method: "DELETE",
+        signal: controller.signal
+      }
     );
+    clearTimeout(timeoutId);
+    
+    if (res.ok) {
+      console.log("✅ Quiz deleted from backend");
+    }
+    // Silently ignore 404 errors (quiz didn't exist on backend)
   } catch (err) {
-    console.log("Backend delete failed, removing from local storage only");
+    // Silently ignore errors (backend unavailable or timeout)
+    console.log("Note: Could not sync delete to backend, removing from local storage");
   }
 
   const user = getUser();
   const key = `teacher_quizzes_${user.id}`;
-  const quizzes = getTeacherQuizzes().filter(q => q.quizId !== quizId);
+  const quizzes = await getTeacherQuizzes();
+  const filtered = quizzes.filter(q => (q.id || q.quizId) !== quizId);
 
-  localStorage.setItem(key, JSON.stringify(quizzes));
+  localStorage.setItem(key, JSON.stringify(filtered));
   toast("✅ Quiz deleted");
   renderApp();
 }
@@ -5512,7 +5620,8 @@ async function submitTeacherQuiz() {
 
     if (!isEditing) {
       saveTeacherQuiz({
-        quizId: data.quizId,
+        quizId: data.id || data.quizId, // Backend returns 'id', but we use 'quizId' in frontend
+        id: data.id || data.quizId, // Also save as 'id' for compatibility
         title,
         questions: teacherQuestions // PASS THE QUESTIONS ARRAY
       });
@@ -5552,7 +5661,8 @@ function saveTeacherQuiz(quiz) {
   const quizzes = JSON.parse(localStorage.getItem(key) || "[]");
 
   quizzes.unshift({
-    quizId: quiz.quizId,
+    quizId: quiz.quizId || quiz.id, // Support both fields
+    id: quiz.id || quiz.quizId,     // Store both for compatibility
     title: quiz.title,
     questions: quiz.questions || [], // INCLUDE QUESTIONS!
     createdAt: Date.now()
@@ -5563,15 +5673,78 @@ function saveTeacherQuiz(quiz) {
 
 
 
-function getTeacherQuizzes() {
+async function getTeacherQuizzes() {
   const user = getUser();
   if (!user) return [];
 
   const key = `teacher_quizzes_${user.id}`;
-  return JSON.parse(localStorage.getItem(key) || "[]");
+  
+  // Load from backend if logged in
+  await loadTeacherQuizzesFromBackend();
+  
+  // Get quizzes from localStorage
+  let quizzes = JSON.parse(localStorage.getItem(key) || "[]");
+  
+  // Final deduplication based on quiz ID
+  const seen = new Set();
+  quizzes = quizzes.filter(q => {
+    const id = q.id || q.quizId;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  
+  // Save deduplicated list back
+  localStorage.setItem(key, JSON.stringify(quizzes));
+  
+  return quizzes;
+}
+
+async function loadTeacherQuizzesFromBackend() {
+  const user = getUser();
+  if (!user) return;
+  
+  try {
+    const res = await fetch(`${getBackendUrl()}/api/quizzes`);
+    if (!res.ok) return;
+    
+    const quizzes = await res.json();
+    
+    if (Array.isArray(quizzes) && quizzes.length > 0) {
+      const key = `teacher_quizzes_${user.id}`;
+      const localQuizzes = JSON.parse(localStorage.getItem(key) || "[]");
+      
+      // Create a map of existing quiz IDs from backend
+      const quizMap = new Map();
+      quizzes.forEach(q => {
+        const id = q.id || q.quizId;
+        if (id) quizMap.set(id, q);
+      });
+      
+      // Add local quizzes that don't exist in backend
+      localQuizzes.forEach(localQuiz => {
+        const id = localQuiz.id || localQuiz.quizId;
+        if (id && !quizMap.has(id)) {
+          quizMap.set(id, localQuiz);
+        }
+      });
+      
+      // Convert map back to array
+      const mergedQuizzes = Array.from(quizMap.values());
+      
+      localStorage.setItem(key, JSON.stringify(mergedQuizzes));
+    }
+  } catch (err) {
+    console.log("Could not load quizzes from backend:", err);
+  }
 }
 
 function bindTeacherViewEvents() {
+  // Load quizzes from backend (but don't re-render to avoid infinite loops)
+  getTeacherQuizzes().catch(err => {
+    console.log("Failed to load quizzes:", err);
+  });
+  
   const backBtn = document.getElementById("backBtnTeacher");
   if (backBtn) {
     backBtn.onclick = () => {
@@ -6000,12 +6173,81 @@ function saveQuizScoreNow() {
   try {
     localStorage.setItem("studentQuizScores", JSON.stringify(allScores));
     console.log("✅ Quiz score saved successfully:", scoreRecord);
+    
+    // Also save to backend for persistence across devices
+    saveQuizAttemptToBackend(scoreRecord).catch(err => {
+      console.log("Note: Backend save failed, but score saved locally:", err);
+    });
+    
     toast("✅ Score saved: " + quizScore + "/" + totalQuestions + " (" + percentage + "%)");
     return true;
   } catch (error) {
     console.error("❌ Failed to save quiz score:", error);
     toast("❌ Error saving score to local storage");
     return false;
+  }
+}
+
+async function saveQuizAttemptToBackend(scoreRecord) {
+  try {
+    const res = await fetch(`${getBackendUrl()}/api/attempts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(scoreRecord)
+    });
+    
+    if (!res.ok) {
+      throw new Error(`Backend returned ${res.status}`);
+    }
+    
+    console.log("✅ Quiz attempt saved to backend:", scoreRecord);
+    return await res.json();
+  } catch (err) {
+    console.log("Could not save attempt to backend:", err);
+    throw err;
+  }
+}
+
+async function loadStudentQuizAttemptsFromBackend() {
+  const student = getUser();
+  if (!student) return;
+  
+  try {
+    const res = await fetch(`${getBackendUrl()}/api/attempts`);
+    if (!res.ok) return;
+    
+    const attempts = await res.json();
+    
+    if (Array.isArray(attempts) && attempts.length > 0) {
+      // Filter attempts for this student
+      const studentAttempts = attempts.filter(a => a.studentId === student.id);
+      
+      if (studentAttempts.length > 0) {
+        // Get local attempts
+        const localAttempts = JSON.parse(localStorage.getItem('studentQuizScores') || '[]');
+        
+        // Create a map of existing attempt IDs
+        const attemptMap = new Map();
+        localAttempts.forEach(a => {
+          if (a.id) attemptMap.set(a.id, a);
+        });
+        
+        // Add backend attempts that don't exist locally
+        studentAttempts.forEach(a => {
+          if (a.id && !attemptMap.has(a.id)) {
+            attemptMap.set(a.id, a);
+          }
+        });
+        
+        // Convert back to array and save
+        const mergedAttempts = Array.from(attemptMap.values());
+        localStorage.setItem('studentQuizScores', JSON.stringify(mergedAttempts));
+        
+        console.log(`✅ Loaded ${studentAttempts.length} quiz attempts from backend`);
+      }
+    }
+  } catch (err) {
+    console.log("Could not load quiz attempts from backend:", err);
   }
 }
 
@@ -7130,6 +7372,13 @@ function renderApp() {
   app.innerHTML = content;
 
   if (currentView === "teacher") bindTeacherViewEvents();
+  
+  if (currentView === "student") {
+    // Load student quiz attempts from backend
+    loadStudentQuizAttemptsFromBackend().catch(err => {
+      console.log("Failed to load attempts from backend:", err);
+    });
+  }
 
   attachEventListeners();
 
@@ -7789,9 +8038,15 @@ function renderClassQuizView() {
     window._classQuizState = {
       currentIndex: 0,
       score: 0,
-      answers: {},
+      // Use array to preserve order and allow map/filter operations
+      answers: [],
       startTime: Date.now()
     };
+  }
+
+  // Safety: normalize answers to an array (old sessions may have stored an object)
+  if (!Array.isArray(window._classQuizState.answers)) {
+    window._classQuizState.answers = [];
   }
   
   const state = window._classQuizState;
@@ -7828,6 +8083,12 @@ function renderClassQuizView() {
             const correctAnswer = q.correctAnswer || q.correct;
             const userAnswer = state.answers[idx];
             
+            // Debug log
+            console.log('Question:', q.question);
+            console.log('q.correct:', q.correct);
+            console.log('q.correctAnswer:', q.correctAnswer);
+            console.log('q.options:', q.options);
+            
             // Convert user answer to letter format if it's full text
             let userAnswerLetter = userAnswer;
             if (userAnswer && userAnswer.length > 1) {
@@ -7845,6 +8106,8 @@ function renderClassQuizView() {
               const correctAnswerIndex = (q.options || []).indexOf(correctAnswer);
               correctAnswerLetter = correctAnswerIndex >= 0 ? String.fromCharCode(65 + correctAnswerIndex) : 'N/A';
             }
+            
+            console.log('correctAnswerLetter:', correctAnswerLetter);
             
             // Compare the letter versions
             const isCorrect = userAnswerLetter === correctAnswerLetter;
@@ -7865,8 +8128,18 @@ function renderClassQuizView() {
                 <p class="text-sm">
                   <strong>Correct Answer:</strong>
                   <span style="color: var(--success);">${(() => {
+                    // If correct answer is a letter (A, B, C, D), convert to option text
+                    if (correctAnswerLetter && correctAnswerLetter.length === 1 && correctAnswerLetter >= 'A' && correctAnswerLetter <= 'Z') {
+                      const correctIndex = correctAnswerLetter.charCodeAt(0) - 65;
+                      const correctOption = q.options?.[correctIndex];
+                      return correctOption ? `${correctAnswerLetter}. ${correctOption}` : correctAnswerLetter;
+                    }
+                    // Otherwise try to find it in options
                     const correctAnswerIndex = (q.options || []).indexOf(correctAnswer);
-                    return correctAnswerIndex >= 0 ? String.fromCharCode(65 + correctAnswerIndex) : 'N/A';
+                    if (correctAnswerIndex >= 0) {
+                      return `${String.fromCharCode(65 + correctAnswerIndex)}. ${correctAnswer}`;
+                    }
+                    return 'N/A';
                   })()}</span>
                 </p>
               ` : ''}
@@ -7974,6 +8247,9 @@ function finishClassQuiz() {
   
   const state = window._classQuizState;
   const quiz = window._classQuiz;
+
+  // Ensure answers is an array for map/filter usage
+  const answers = Array.isArray(state.answers) ? state.answers : [];
   
   // Calculate score based on correct answers
   let correctCount = 0;
@@ -7981,7 +8257,7 @@ function finishClassQuiz() {
   
   questions.forEach((q, idx) => {
     const correctAnswer = q.correctAnswer || q.correct;
-    const userAnswer = state.answers[idx];
+    const userAnswer = answers[idx];
     
     let userAnswerLetter = userAnswer;
     if (userAnswer && userAnswer.length > 1) {
@@ -8017,6 +8293,30 @@ function finishClassQuiz() {
   const scores = JSON.parse(localStorage.getItem('studentQuizScores') || '{}');
   const percentage = Math.round((correctCount / questions.length) * 100);
   const letterGrade = getLetterGrade(percentage);
+  
+  // Calculate which answers were correct
+  const correctAnswers = answers.map((answer, idx) => {
+    const q = questions[idx];
+    const correctAnswer = q.correctAnswer || q.correct;
+    
+    // Convert both to letter format for comparison
+    let userAnswerLetter = answer;
+    if (answer && answer.length > 1) {
+      const answerIndex = (q.options || []).indexOf(answer);
+      userAnswerLetter = answerIndex >= 0 ? String.fromCharCode(65 + answerIndex) : answer;
+    }
+    
+    let correctAnswerLetter = 'N/A';
+    if (correctAnswer && correctAnswer.length === 1 && correctAnswer >= 'A' && correctAnswer <= 'Z') {
+      correctAnswerLetter = correctAnswer;
+    } else {
+      const correctAnswerIndex = (q.options || []).indexOf(correctAnswer);
+      correctAnswerLetter = correctAnswerIndex >= 0 ? String.fromCharCode(65 + correctAnswerIndex) : 'N/A';
+    }
+    
+    return userAnswerLetter === correctAnswerLetter;
+  });
+  
   const scoreKey = `${window._classQuizId}_${new Date().toISOString()}`;
   scores[scoreKey] = {
     quizId: window._classQuizId,
@@ -8027,7 +8327,9 @@ function finishClassQuiz() {
     letterGrade: letterGrade,
     completedAt: new Date().toISOString(),
     studentId: window.currentStudent?.id,
-    attemptNumber: getStudentQuizAttempts(window.currentStudent?.id, window._classQuizId).length + 1
+    attemptNumber: getStudentQuizAttempts(window.currentStudent?.id, window._classQuizId).length + 1,
+    answers: state.answers,
+    correctAnswers: correctAnswers
   };
   localStorage.setItem('studentQuizScores', JSON.stringify(scores));
   

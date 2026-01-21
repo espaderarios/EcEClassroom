@@ -165,7 +165,18 @@ export default {
             return jsonResponse({ error: 'AI key not configured. Set OPENAI_API_KEY via `wrangler secret put OPENAI_API_KEY`.' }, 400);
           }
 
-          const systemPrompt = `You generate multiple-choice quiz questions. Return strict JSON: {"questions":[{"question":"...","options":["A","B","C","D"],"correct":"B"}]}. Provide exactly ${count} well-formed questions about ${topic}. Options should be concise and distinct. Use capital letters A-D for correct.`;
+          const systemPrompt = `You are a quiz generator. Generate multiple-choice quiz questions in strict JSON format.
+
+CRITICAL: Do NOT include letter prefixes (A), B), C), D)) or numbers (1., 2.) in the option text.
+
+Format: {"questions":[{"question":"What is X?","options":["First answer","Second answer","Third answer","Fourth answer"],"correct":"First answer"}]}
+
+Rules:
+- Provide exactly ${count} questions about ${topic}
+- Each option should be JUST the answer text, no prefixes
+- The "correct" field should be the EXACT TEXT of the correct option (not a letter)
+- Options must be concise, distinct, and accurate
+- Return ONLY valid JSON, no other text`;
 
           const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
@@ -174,7 +185,7 @@ export default {
               'Authorization': `Bearer ${env.OPENAI_API_KEY}`
             },
             body: JSON.stringify({
-              model: 'llama-3.1-70b-versatile',
+              model: 'llama-3.3-70b-versatile',
               messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: topic }
@@ -189,7 +200,13 @@ export default {
           }
 
           const aiData = await aiResp.json().catch(() => null);
+          
+          // Debug logging
+          console.log('AI Response Status:', aiResp.status);
+          console.log('AI Data:', JSON.stringify(aiData));
+          
           const raw = aiData?.choices?.[0]?.message?.content || '';
+          console.log('Raw AI content:', raw);
 
           try {
             const parsed = JSON.parse(raw);
@@ -197,6 +214,11 @@ export default {
               return jsonResponse({ questions: parsed.questions.slice(0, count) });
             }
           } catch (e) {
+            console.error('Failed to parse AI response:', e.message);
+            // Check if API returned an error
+            if (aiData?.error) {
+              return jsonResponse({ error: `AI API error: ${aiData.error.message || JSON.stringify(aiData.error)}` }, 500);
+            }
             // fall through to fallback
           }
 
@@ -284,6 +306,10 @@ export default {
 
       if (pathname.startsWith('/api/enrollments')) {
         return handleCollection(request, pathname, env.ENROLLMENTS);
+      }
+
+      if (pathname.startsWith('/api/attempts')) {
+        return handleCollection(request, pathname, env.QUIZZES);
       }
 
       return jsonResponse({ error: 'Not found' }, 404);
