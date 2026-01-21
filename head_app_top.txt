@@ -1,0 +1,400 @@
+window.currentStudent =
+  JSON.parse(localStorage.getItem("currentStudent") || "null");
+
+  window.currentTheme = localStorage.getItem("flashcard-theme") || null;
+if (window.currentTheme) applyThemePreset(window.currentTheme);
+
+
+(function cleanupNullQuizScores() {
+  let scores = JSON.parse(localStorage.getItem("studentQuizScores") || "[]");
+  scores = scores.filter(s => s.quizId != null);
+  localStorage.setItem("studentQuizScores", JSON.stringify(scores));
+})();
+
+const TEACHER_DRAFT_KEY = "teacher_quiz_draft";
+const STUDENT_PROFILE_KEY = "student_profile";
+const STUDENT_CLASSES_KEY = "student_enrolled_classes";
+const TEACHER_CLASSES_KEY = "teacher_classes";
+const CLASS_QUIZZES_KEY = "class_quizzes";
+
+function shuffleArray(array) {
+  return array
+    .map(value => ({ value, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ value }) => value);
+}
+
+function toast(message, duration = 3000) {
+  const el = document.createElement('div');
+  el.textContent = message;
+  el.className = 'toast';
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    setTimeout(() => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 300);
+  }, duration);
+}
+
+// ============= MODERN DESIGN HELPERS =============
+
+/**
+ * Wrapper for modern card layout
+ */
+function createCard(content, { header = null, footer = null, elevated = false, className = '' } = {}) {
+  let headerHtml = '';
+  let footerHtml = '';
+  
+  if (header) {
+    headerHtml = `<div class="card-header">${header}</div>`;
+  }
+  
+  if (footer) {
+    footerHtml = `<div class="card-footer">${footer}</div>`;
+  }
+  
+  return `<div class="card ${elevated ? 'elevated' : ''} ${className} animate-slideInUp">${headerHtml}<div class="card-body">${content}</div>${footerHtml}</div>`;
+}
+
+/**
+ * Create a modern button with consistent styling
+ */
+function createButton(text, { onclick = '', variant = 'primary', icon = '', className = '' } = {}) {
+  const variants = {
+    primary: 'btn-primary',
+    secondary: 'btn-secondary',
+    success: 'btn-success',
+    danger: 'btn-danger',
+    text: 'btn-text'
+  };
+  
+  return `<button class="${variants[variant] || 'btn-primary'} ${className}" onclick="${onclick}">${icon ? `${icon} ` : ''}${text}</button>`;
+}
+
+/**
+ * Modern grid container
+ */
+function createGrid(items, { columns = 'grid-cols-2', gap = 'gap-lg' } = {}) {
+  return `<div class="grid ${columns} ${gap}">${items.join('')}</div>`;
+}
+
+/**
+ * Modern section with consistent spacing
+ */
+function createSection(title, content, { subtitle = '' } = {}) {
+  return `
+    <section class="p-xl">
+      <h2 class="text-2xl font-bold mb-md">${title}</h2>
+      ${subtitle ? `<p class="text-muted mb-lg">${subtitle}</p>` : ''}
+      ${content}
+    </section>
+  `;
+}
+
+function saveTeacherDraft(title, questions, timeLimit = 0) {
+  localStorage.setItem(
+    TEACHER_DRAFT_KEY,
+    JSON.stringify({ title, questions, timeLimit })
+  );
+}
+
+function loadTeacherDraft() {
+  const raw = localStorage.getItem(TEACHER_DRAFT_KEY);
+  return raw ? JSON.parse(raw) : { title: "", questions: [], timeLimit: 0 };
+}
+
+
+function clearTeacherDraft() {
+  localStorage.removeItem(TEACHER_DRAFT_KEY);
+}
+
+// ============= PROFILE & CLASS STORAGE FUNCTIONS =============
+
+function saveStudentProfile(profileData) {
+  localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(profileData));
+  // Sync to backend asynchronously
+  syncStudentProfileToBackend(profileData);
+}
+
+function getStudentProfile() {
+  const user = getUser();
+  const profile = JSON.parse(localStorage.getItem(STUDENT_PROFILE_KEY) || "{}");
+  
+  // If user is logged in with Google, use Google data as primary source
+  if (user && user.provider === 'google') {
+    return {
+      ...profile,
+      name: user.name || profile.name || "",
+      email: user.email || profile.email || "",
+      googleId: user.googleId || profile.googleId,
+      googleEmail: user.googleEmail || user.email || profile.googleEmail,
+      profilePictureUrl: user.picture || profile.profilePictureUrl,
+      id: profile.id || user.id,
+      school: profile.school || "",
+      yearLevel: profile.yearLevel || ""
+    };
+  }
+  
+  return profile || {
+    name: window.currentStudent?.name || "",
+    id: window.currentStudent?.id || "",
+    email: "",
+    school: "",
+    yearLevel: "",
+    profilePictureUrl: null,
+    googleId: null,
+    googleEmail: null
+  };
+}
+
+function saveClass(classData) {
+  const classes = JSON.parse(localStorage.getItem(TEACHER_CLASSES_KEY) || "[]");
+  const exists = classes.find(c => c.id === classData.id);
+  
+  if (exists) {
+    Object.assign(exists, classData);
+  } else {
+    classes.push(classData);
+  }
+  
+  localStorage.setItem(TEACHER_CLASSES_KEY, JSON.stringify(classes));
+  // Sync to backend asynchronously
+  syncClassToBackend(classData);
+}
+
+function getTeacherClasses(teacherId) {
+  const classes = JSON.parse(localStorage.getItem(TEACHER_CLASSES_KEY) || "[]");
+  return classes.filter(c => c.teacherId === teacherId);
+}
+
+function getClassById(classId) {
+  const classes = JSON.parse(localStorage.getItem(TEACHER_CLASSES_KEY) || "[]");
+  return classes.find(c => c.id === classId);
+}
+
+function deleteClass(classId) {
+  const classes = JSON.parse(localStorage.getItem(TEACHER_CLASSES_KEY) || "[]");
+  const filtered = classes.filter(c => c.id !== classId);
+  localStorage.setItem(TEACHER_CLASSES_KEY, JSON.stringify(filtered));
+}
+
+function enrollStudentInClass(classCode) {
+  const classes = JSON.parse(localStorage.getItem(TEACHER_CLASSES_KEY) || "[]");
+  const targetClass = classes.find(c => c.classCode === classCode);
+  
+  if (!targetClass) {
+    return { success: false, error: "Invalid class code" };
+  }
+  
+  const studentId = window.currentStudent?.id;
+  if (!studentId) {
+    return { success: false, error: "Student ID not found" };
+  }
+  
+  const enrolledClasses = JSON.parse(localStorage.getItem(STUDENT_CLASSES_KEY) || "[]");
+  const alreadyEnrolled = enrolledClasses.some(e => e.classId === targetClass.id && e.studentId === studentId);
+  
+  if (alreadyEnrolled) {
+    return { success: false, error: "Already enrolled in this class" };
+  }
+  
+  const enrollment = {
+    classId: targetClass.id,
+    className: targetClass.name,
+    teacherId: targetClass.teacherId,
+    studentId: studentId,
+    enrolledAt: new Date().toISOString()
+  };
+  
+  enrolledClasses.push(enrollment);
+  localStorage.setItem(STUDENT_CLASSES_KEY, JSON.stringify(enrolledClasses));
+  // Sync to backend asynchronously
+  syncEnrollmentToBackend(enrollment);
+  
+  return { success: true };
+}
+
+function getStudentEnrolledClasses(studentId = null) {
+  if (!studentId) {
+    studentId = window.currentStudent?.id;
+  }
+  
+  const enrolledClasses = JSON.parse(localStorage.getItem(STUDENT_CLASSES_KEY) || "[]");
+  return enrolledClasses.filter(e => e.studentId === studentId);
+}
+
+function getClassQuizzes(classId) {
+  const classQuizzes = JSON.parse(localStorage.getItem(CLASS_QUIZZES_KEY) || "[]");
+  return classQuizzes.filter(q => q.classId === classId);
+}
+
+function saveClassQuiz(quizData) {
+  const classQuizzes = JSON.parse(localStorage.getItem(CLASS_QUIZZES_KEY) || "[]");
+  const exists = classQuizzes.find(q => q.id === quizData.id && q.classId === quizData.classId);
+  
+  if (exists) {
+    Object.assign(exists, quizData);
+  } else {
+    classQuizzes.push(quizData);
+  }
+  
+  localStorage.setItem(CLASS_QUIZZES_KEY, JSON.stringify(classQuizzes));
+}
+
+function getLetterGrade(percentage) {
+  if (percentage >= 90) return 'A';
+  if (percentage >= 80) return 'B';
+  if (percentage >= 70) return 'C';
+  if (percentage >= 60) return 'D';
+  return 'F';
+}
+
+function getGradeColor(grade) {
+  switch(grade) {
+    case 'A': return '#22c55e'; // green
+    case 'B': return '#3b82f6'; // blue
+    case 'C': return '#f59e0b'; // orange
+    case 'D': return '#ef4444'; // red
+    case 'F': return '#7f1d1d'; // dark red
+    default: return 'var(--primary)';
+  }
+}
+
+function getStudentQuizAttempts(studentId, quizId) {
+  const scores = JSON.parse(localStorage.getItem('studentQuizScores') || '[]');
+  if (!Array.isArray(scores)) return [];
+  return scores.filter(s => s && s.studentId === studentId && s.quizId === quizId);
+}
+
+function getQuizAttemptLimit(classId, quizId) {
+  const limits = JSON.parse(localStorage.getItem('quizAttemptLimits') || '{}');
+  const key = `${classId}_${quizId}`;
+  return limits[key] || 3; // Default 3 attempts
+}
+
+function setQuizAttemptLimit(classId, quizId, limit) {
+  const limits = JSON.parse(localStorage.getItem('quizAttemptLimits') || '{}');
+  const key = `${classId}_${quizId}`;
+  limits[key] = limit;
+  localStorage.setItem('quizAttemptLimits', JSON.stringify(limits));
+}
+
+function initTeacherView() {
+  // 1?????? Restore draft
+  const draft = loadTeacherDraft();
+  if (draft) {
+    teacherQuestions = draft.questions || teacherQuestions;
+    window._teacherTitleDraft = draft.title || "";
+  } else {
+    window._teacherTitleDraft = "";
+  }
+
+  // 2?????? Setup back button AFTER render
+  requestAnimationFrame(() => {
+    const backBtn = document.getElementById("backBtnTeacherQuiz");
+    if (!backBtn) return;
+
+    backBtn.style.display = "block";
+
+    backBtn.onclick = () => {
+      currentView = "home";
+      renderApp();
+    };
+  });
+}
+
+const AI_API_URL =
+  "https://flashcards-ai-backend.onrender.com/api/generate-cards";
+
+// Get backend URL - use from localStorage or default
+function getBackendUrl() {
+  const stored = localStorage.getItem('backendUrl');
+  // Skip localhost URLs from old dev sessions
+  if (stored && !stored.includes('localhost') && !stored.includes('127.0.0.1')) {
+    return stored;
+  }
+  return 'https://ec-eclassroom-backend.espaderarios.workers.dev';
+}
+
+// Set backend URL (can be called to configure)
+function setBackendUrl(url) {
+  localStorage.setItem('backendUrl', url.replace(/\/$/, '')); // Remove trailing slash
+  toast(`??? Backend URL set to: ${url}`);
+}
+
+// ============= BACKEND SYNC FUNCTIONS =============
+
+async function syncQuizToBackend(quiz) {
+  const user = getUser();
+  if (!user || !user.authenticated) return null;
+  
+  try {
+    const quizData = {
+      ...quiz,
+      userId: user.id,
+      userEmail: user.email,
+      lastSyncedAt: new Date().toISOString()
+    };
+    
+    const response = await fetch(`${getBackendUrl()}/api/quizzes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(quizData)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Quiz synced to backend:', data);
+      return data;
+    } else {
+      console.log('Failed to sync quiz:', response.status);
+    }
+  } catch (error) {
+    console.log('Quiz sync error:', error);
+  }
+  return null;
+}
+
+async function loadQuizzesFromBackend() {
+  const user = getUser();
+  if (!user || !user.authenticated) return [];
+  
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/quizzes`);
+    if (!response.ok) return [];
+    
+    const quizzes = await response.json();
+    
+    if (Array.isArray(quizzes)) {
+      // Filter quizzes for current user
+      const userQuizzes = quizzes.filter(q => q.userId === user.id);
+      console.log(`Loaded ${userQuizzes.length} quizzes from backend`);
+      return userQuizzes;
+    }
+  } catch (error) {
+    console.log('Failed to load quizzes from backend:', error);
+  }
+  return [];
+}
+
+async function loadStudentAttemptsFromBackend() {
+  const user = getUser();
+  if (!user || !user.authenticated) return [];
+  
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/attempts`);
+    if (!response.ok) return [];
+    
+    const attempts = await response.json();
+    
+    if (Array.isArray(attempts)) {
+      // Filter attempts for current user
+      const userAttempts = attempts.filter(a => a.studentId === user.id);
+      console.log(`Loaded ${userAttempts.length} quiz attempts from backend`);
+      return userAttempts;
+    }
+  } catch (error) {
+    console.log('Failed to load attempts from backend:', error);
+  }
+  return [];
