@@ -51,26 +51,52 @@
 
 
 window.getUser = function () {
-  return JSON.parse(localStorage.getItem("user"));
+  // Prefer durable localStorage; fall back to sessionStorage if available
+  const fromLocal = localStorage.getItem("user");
+  if (fromLocal) return JSON.parse(fromLocal);
+  const fromSession = sessionStorage.getItem("user");
+  if (fromSession) {
+    // migrate session user back to local for persistence across refreshes
+    localStorage.setItem("user", fromSession);
+    return JSON.parse(fromSession);
+  }
+  return null;
 };
 
 window.setUser = function (user) {
-  localStorage.setItem("user", JSON.stringify(user));
+  const json = JSON.stringify(user);
+  localStorage.setItem("user", json);
+  sessionStorage.setItem("user", json);
 };
 
 window.logoutUser = function () {
   localStorage.removeItem("user");
+  sessionStorage.removeItem("user");
 };
 
 if (!getUser()) {
-  const role = prompt("Enter role: teacher or student", "student");
-
-  setUser({
-    id: crypto.randomUUID(),
-    role: role === "teacher" ? "teacher" : "student",
-    name: role === "teacher" ? "Teacher Demo" : "Student Demo"
-  });
+  // Check for Google OAuth session cookie from Cloudflare Workers
+  const cookieStr = document.cookie;
+  const sessionMatch = cookieStr.match(/session_user=([^;]+)/);
+  
+  if (sessionMatch) {
+    try {
+      const sessionData = JSON.parse(decodeURIComponent(sessionMatch[1]));
+      setUser({
+        id: sessionData.id,
+        name: sessionData.name || sessionData.email,
+        email: sessionData.email,
+        provider: 'google',
+        authenticated: true
+      });
+    } catch (e) {
+      console.log('Failed to parse session cookie');
+    }
+  }
 }
+
+// Flag for data persistence - used to sync with backend conditionally
+window.isAuthenticated = getUser()?.authenticated === true;
 
   function getStorageKey() {
     const user = getUser();

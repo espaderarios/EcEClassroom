@@ -34,6 +34,26 @@ function jsonResponse(data, status = 200) {
   });
 }
 
+function redirectResponse(location, { status = 302, cookies = [] } = {}) {
+  const headers = new Headers({ Location: location });
+  cookies.forEach(c => headers.append('Set-Cookie', c));
+  return new Response(null, { status, headers });
+}
+
+function buildCookie(name, value, { httpOnly = true, secure = true, path = '/', sameSite = 'Lax', maxAge = 600 } = {}) {
+  const parts = [`${name}=${value}`];
+  if (path) parts.push(`Path=${path}`);
+  if (httpOnly) parts.push('HttpOnly');
+  if (secure) parts.push('Secure');
+  if (sameSite) parts.push(`SameSite=${sameSite}`);
+  if (maxAge) parts.push(`Max-Age=${maxAge}`);
+  return parts.join('; ');
+}
+
+function getAppOrigin(env) {
+  return env.APP_ORIGIN || 'http://127.0.0.1:5500';
+}
+
 function parseIdFromPath(pathname) {
   const parts = pathname.split('/').filter(Boolean);
   return parts.length >= 3 ? parts[2] : null;
@@ -94,6 +114,103 @@ export default {
     try {
       if (pathname === '/' || pathname === '/health') {
         return jsonResponse({ ok: true, name: 'ec-eclassroom-backend' });
+      }
+
+      // --- Google OAuth: start ---
+      if (pathname === '/auth/google/start' && request.method === 'GET') {
+        const clientId = env.GOOGLE_CLIENT_ID;
+        const clientSecret = env.GOOGLE_CLIENT_SECRET;
+        if (!clientId || !clientSecret) {
+          return jsonResponse({ error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' }, 500);
+        }
+
+        const url = new URL(request.url);
+        const redirectUri = env.GOOGLE_REDIRECT_URI || `${url.origin}/auth/google/callback`;
+
+        // CSRF state
+        const state = crypto.randomUUID();
+        const stateCookie = buildCookie('oauth_state', state, { maxAge: 600 });
+
+        const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+        authUrl.searchParams.set('client_id', clientId);
+        authUrl.searchParams.set('redirect_uri', redirectUri);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('scope', 'openid email profile');
+        authUrl.searchParams.set('state', state);
+        authUrl.searchParams.set('prompt', 'consent');
+
+        return redirectResponse(authUrl.toString(), { cookies: [stateCookie] });
+      }
+
+      // --- Google OAuth: callback ---
+      if (pathname === '/auth/google/callback' && request.method === 'GET') {
+        const clientId = env.GOOGLE_CLIENT_ID;
+        const clientSecret = env.GOOGLE_CLIENT_SECRET;
+        if (!clientId || !clientSecret) {
+          return jsonResponse({ error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' }, 500);
+        }
+
+        const url = new URL(request.url);
+        const code = url.searchParams.get('code');
+        const returnedState = url.searchParams.get('state');
+        const redirectUri = env.GOOGLE_REDIRECT_URI || `${url.origin}/auth/google/callback`;
+
+        const cookieHeader = request.headers.get('cookie') || '';
+        const cookies = Object.fromEntries(cookieHeader.split(';').map(c => c.trim().split('=')));
+        const savedState = cookies['oauth_state'];
+        if (!code || !returnedState || !savedState || returnedState !== savedState) {
+          return jsonResponse({ error: 'Invalid OAuth state or missing code' }, 400);
+        }
+
+        // Exchange code for tokens
+        const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            code,
+            client_id: clientId,
+            client_secret: clientSecret,
+            redirect_uri: redirectUri,
+            grant_type: 'authorization_code'
+          })
+        });
+
+        const tokenJson = await tokenResp.json().catch(() => null);
+        if (!tokenResp.ok || !tokenJson || !tokenJson.access_token) {
+          return jsonResponse({ error: 'Failed to exchange OAuth code' }, 400);
+        }
+
+        // Get user info
+        const userResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenJson.access_token}` }
+        });
+
+        const userInfo = await userResp.json().catch(() => null);
+        if (!userResp.ok || !userInfo || !userInfo.sub) {
+          return jsonResponse({ error: 'Failed to fetch user profile' }, 400);
+        }
+
+        // Build app user
+        const appUser = {
+          id: `google_${userInfo.sub}`,
+          provider: 'google',
+          email: userInfo.email,
+          name: userInfo.name || userInfo.email || 'Google User',
+          picture: userInfo.picture,
+          createdAt: new Date().toISOString()
+        };
+
+        // Persist user minimally (store in STUDENTS KV)
+        if (env.STUDENTS) {
+          await kvPut(env.STUDENTS, appUser.id, appUser);
+        }
+
+        // Issue a lightweight session cookie with user id (for demo; replace with real session/JWT in production)
+        const sessionPayload = encodeURIComponent(JSON.stringify({ id: appUser.id, name: appUser.name, email: appUser.email }));
+        const sessionCookie = buildCookie('session_user', sessionPayload, { maxAge: 60 * 60 * 24 * 7 });
+
+        const appOrigin = getAppOrigin(env);
+        return redirectResponse(appOrigin, { cookies: [sessionCookie, buildCookie('oauth_state', '', { maxAge: 0 })] });
       }
 
         // AI-powered card generation (uses OpenAI key from environment)
