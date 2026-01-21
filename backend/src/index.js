@@ -1,4 +1,16 @@
 // KV-based persistent storage helpers
+function getCorsHeaders(origin = '*') {
+  const allowedOrigin = origin && origin !== 'null' ? origin : '*';
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Vary': 'Origin',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Origin, Accept',
+    'Access-Control-Expose-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400'
+  };
+}
+
 async function kvGet(kv, key) {
   const value = await kv.get(key);
   return value ? JSON.parse(value) : null;
@@ -22,15 +34,13 @@ async function kvDelete(kv, key) {
   await kv.delete(key);
 }
 
-function jsonResponse(data, status = 200) {
+function jsonResponse(data, status = 200, origin = '*') {
+  const headers = getCorsHeaders(origin);
+  headers['Content-Type'] = 'application/json;charset=UTF-8';
+
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      'Content-Type': 'application/json;charset=UTF-8',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
+    headers
   });
 }
 
@@ -59,61 +69,67 @@ function parseIdFromPath(pathname) {
   return parts.length >= 3 ? parts[2] : null;
 }
 
-async function handleCollection(request, pathname, kv) {
-  if (!kv) {
-    return jsonResponse({ error: 'KV namespace not available' }, 500);
-  }
-  
-  const id = parseIdFromPath(pathname);
-  
-  if (request.method === 'GET') {
-    if (id) {
-      const item = await kvGet(kv, id);
-      return item ? jsonResponse(item) : jsonResponse({ error: 'Not found' }, 404);
+async function handleCollection(request, pathname, kv, origin = '*') {
+  let id = null;
+  try {
+    if (!kv) {
+      return jsonResponse({ error: 'KV namespace not available' }, 500, origin);
     }
-    const items = await kvGetAll(kv);
-    return jsonResponse(items);
-  }
-
-  if (request.method === 'POST') {
-    const body = await request.json().catch(() => ({}));
-    const itemId = body.id || `${Date.now()}_${Math.random().toString(36).slice(2,9)}`;
-    const newItem = Object.assign({ id: itemId, createdAt: new Date().toISOString() }, body);
-    await kvPut(kv, itemId, newItem);
-    return jsonResponse(newItem, 201);
-  }
-
-  if ((request.method === 'PUT' || request.method === 'PATCH') && id) {
-    const existing = await kvGet(kv, id);
-    if (!existing) {
-      return jsonResponse({ error: 'Not found' }, 404);
+    
+    id = parseIdFromPath(pathname);
+    
+    if (request.method === 'GET') {
+      if (id) {
+        const item = await kvGet(kv, id);
+        return item ? jsonResponse(item, 200, origin) : jsonResponse({ error: 'Not found' }, 404, origin);
+      }
+      const items = await kvGetAll(kv);
+      return jsonResponse(items, 200, origin);
     }
-    const body = await request.json().catch(() => ({}));
-    const updated = Object.assign({}, existing, body, { updatedAt: new Date().toISOString() });
-    await kvPut(kv, id, updated);
-    return jsonResponse(updated);
-  }
 
-  if (request.method === 'DELETE' && id) {
-    const existing = await kvGet(kv, id);
-    if (!existing) {
-      return jsonResponse({ error: 'Not found' }, 404);
+    if (request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const itemId = body.id || `${Date.now()}_${Math.random().toString(36).slice(2,9)}`;
+      const newItem = Object.assign({ id: itemId, createdAt: new Date().toISOString() }, body);
+      await kvPut(kv, itemId, newItem);
+      return jsonResponse(newItem, 201, origin);
     }
-    await kvDelete(kv, id);
-    return jsonResponse({ ok: true });
-  }
 
-  return jsonResponse({ error: 'Method not allowed' }, 405);
+    if ((request.method === 'PUT' || request.method === 'PATCH') && id) {
+      const existing = await kvGet(kv, id);
+      if (!existing) {
+        return jsonResponse({ error: 'Not found' }, 404, origin);
+      }
+      const body = await request.json().catch(() => ({}));
+      const updated = Object.assign({}, existing, body, { updatedAt: new Date().toISOString() });
+      await kvPut(kv, id, updated);
+      return jsonResponse(updated, 200, origin);
+    }
+
+    if (request.method === 'DELETE' && id) {
+      const existing = await kvGet(kv, id);
+      if (!existing) {
+        return jsonResponse({ error: 'Not found' }, 404, origin);
+      }
+      await kvDelete(kv, id);
+      return jsonResponse({ ok: true }, 200, origin);
+    }
+
+    return jsonResponse({ error: 'Method not allowed' }, 405, origin);
+  } catch (error) {
+    console.error(`Collection handler error for ${pathname}:`, error);
+    const message = error?.message || '';
+    if (request.method === 'GET' && !id && message.includes('limit exceeded')) {
+      return jsonResponse([], 200, origin);
+    }
+    return jsonResponse({ error: 'Storage operation failed', details: message || 'Unknown error' }, 500, origin);
+  }
 }
 
 export default {
   async fetch(request, env) {
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Content-Type': 'application/json;charset=UTF-8'
-    };
+    const origin = request.headers.get('origin') || '*';
+    const corsHeaders = getCorsHeaders(origin);
 
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
@@ -125,7 +141,7 @@ export default {
       const pathname = url.pathname;
 
       if (pathname === '/' || pathname === '/health') {
-        return jsonResponse({ ok: true, name: 'ec-eclassroom-backend' });
+        return jsonResponse({ ok: true, name: 'ec-eclassroom-backend' }, 200, origin);
       }
 
       // --- Google OAuth: start ---
@@ -133,7 +149,7 @@ export default {
         const clientId = env.GOOGLE_CLIENT_ID;
         const clientSecret = env.GOOGLE_CLIENT_SECRET;
         if (!clientId || !clientSecret) {
-          return jsonResponse({ error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' }, 500);
+          return jsonResponse({ error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' }, 500, origin);
         }
 
         const url = new URL(request.url);
@@ -159,7 +175,7 @@ export default {
         const clientId = env.GOOGLE_CLIENT_ID;
         const clientSecret = env.GOOGLE_CLIENT_SECRET;
         if (!clientId || !clientSecret) {
-          return jsonResponse({ error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' }, 500);
+          return jsonResponse({ error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' }, 500, origin);
         }
 
         const url = new URL(request.url);
@@ -171,7 +187,7 @@ export default {
         const cookies = Object.fromEntries(cookieHeader.split(';').map(c => c.trim().split('=')));
         const savedState = cookies['oauth_state'];
         if (!code || !returnedState || !savedState || returnedState !== savedState) {
-          return jsonResponse({ error: 'Invalid OAuth state or missing code' }, 400);
+          return jsonResponse({ error: 'Invalid OAuth state or missing code' }, 400, origin);
         }
 
         // Exchange code for tokens
@@ -189,7 +205,7 @@ export default {
 
         const tokenJson = await tokenResp.json().catch(() => null);
         if (!tokenResp.ok || !tokenJson || !tokenJson.access_token) {
-          return jsonResponse({ error: 'Failed to exchange OAuth code' }, 400);
+          return jsonResponse({ error: 'Failed to exchange OAuth code' }, 400, origin);
         }
 
         // Get user info
@@ -199,7 +215,7 @@ export default {
 
         const userInfo = await userResp.json().catch(() => null);
         if (!userResp.ok || !userInfo || !userInfo.sub) {
-          return jsonResponse({ error: 'Failed to fetch user profile' }, 400);
+          return jsonResponse({ error: 'Failed to fetch user profile' }, 400, origin);
         }
 
         // Build app user with Google account info
@@ -261,11 +277,11 @@ export default {
         const { localUserId, googleUserId } = body;
         
         if (!localUserId || !googleUserId) {
-          return jsonResponse({ error: 'Both localUserId and googleUserId are required' }, 400);
+          return jsonResponse({ error: 'Both localUserId and googleUserId are required' }, 400, origin);
         }
         
         if (!env.STUDENTS) {
-          return jsonResponse({ error: 'Storage not available' }, 500);
+          return jsonResponse({ error: 'Storage not available' }, 500, origin);
         }
         
         // Get both users
@@ -273,7 +289,7 @@ export default {
         const googleUser = await kvGet(env.STUDENTS, googleUserId);
         
         if (!googleUser) {
-          return jsonResponse({ error: 'Google user not found' }, 404);
+          return jsonResponse({ error: 'Google user not found' }, 404, origin);
         }
         
         // Link them
@@ -289,7 +305,7 @@ export default {
         googleUser.linkedUserId = localUserId;
         await kvPut(env.STUDENTS, googleUserId, googleUser);
         
-        return jsonResponse({ success: true, user: googleUser, linkedUser: localUser });
+        return jsonResponse({ success: true, user: googleUser, linkedUser: localUser }, 200, origin);
       }
 
       // --- Get user by Google ID ---
@@ -297,16 +313,16 @@ export default {
         const googleId = pathname.split('/').pop();
         
         if (!googleId || !env.STUDENTS) {
-          return jsonResponse({ error: 'Invalid request' }, 400);
+          return jsonResponse({ error: 'Invalid request' }, 400, origin);
         }
         
         const mapping = await kvGet(env.STUDENTS, `google_map_${googleId}`);
         if (!mapping) {
-          return jsonResponse({ error: 'User not found' }, 404);
+          return jsonResponse({ error: 'User not found' }, 404, origin);
         }
         
         const user = await kvGet(env.STUDENTS, mapping.userId);
-        return jsonResponse({ user });
+        return jsonResponse({ user }, 200, origin);
       }
 
         // AI-powered card generation (uses OpenAI key from environment)
@@ -316,7 +332,7 @@ export default {
           const count = body.count || 5;
 
           if (!env || !env.OPENAI_API_KEY) {
-            return jsonResponse({ error: 'AI key not configured. Set OPENAI_API_KEY via `wrangler secret put OPENAI_API_KEY`.' }, 400);
+            return jsonResponse({ error: 'AI key not configured. Set OPENAI_API_KEY via `wrangler secret put OPENAI_API_KEY`.' }, 400, origin);
           }
 
           // Ask the model to produce JSON with an array of cards
@@ -340,7 +356,7 @@ export default {
           }).catch(err => null);
 
           if (!openaiResp) {
-            return jsonResponse({ error: 'Error contacting AI provider' }, 502);
+            return jsonResponse({ error: 'Error contacting AI provider' }, 502, origin);
           }
 
           const openaiData = await openaiResp.json().catch(() => null);
@@ -352,7 +368,7 @@ export default {
             if (Array.isArray(parsed.cards)) {
               // ensure ids
               const cards = parsed.cards.map((c, i) => ({ id: c.id || `card_${Date.now()}_${i}`, front: c.front || '', back: c.back || '' }));
-              return jsonResponse({ cards });
+              return jsonResponse({ cards }, 200, origin);
             }
           } catch (e) {
             // fallthrough to fallback generator below
@@ -365,7 +381,7 @@ export default {
             const l = lines[i] || `Card ${i + 1}`;
             cards.push({ id: `card_${Date.now()}_${i}`, front: l.slice(0, 120), back: l.slice(0, 240) });
           }
-          return jsonResponse({ cards });
+          return jsonResponse({ cards }, 200, origin);
         }
 
         // AI-powered quiz generation (uses Groq API key from environment)
@@ -375,7 +391,7 @@ export default {
           const count = Math.max(1, Math.min(20, body.count || 5));
 
           if (!env || !env.OPENAI_API_KEY) {
-            return jsonResponse({ error: 'AI key not configured. Set OPENAI_API_KEY via `wrangler secret put OPENAI_API_KEY`.' }, 400);
+            return jsonResponse({ error: 'AI key not configured. Set OPENAI_API_KEY via `wrangler secret put OPENAI_API_KEY`.' }, 400, origin);
           }
 
           const systemPrompt = `You are a quiz generator. Generate multiple-choice quiz questions in strict JSON format.
@@ -409,7 +425,7 @@ Rules:
           }).catch(() => null);
 
           if (!aiResp) {
-            return jsonResponse({ error: 'Error contacting AI provider' }, 502);
+            return jsonResponse({ error: 'Error contacting AI provider' }, 502, origin);
           }
 
           const aiData = await aiResp.json().catch(() => null);
@@ -424,13 +440,13 @@ Rules:
           try {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed.questions) && parsed.questions.length) {
-              return jsonResponse({ questions: parsed.questions.slice(0, count) });
+              return jsonResponse({ questions: parsed.questions.slice(0, count) }, 200, origin);
             }
           } catch (e) {
             console.error('Failed to parse AI response:', e.message);
             // Check if API returned an error
             if (aiData?.error) {
-              return jsonResponse({ error: `AI API error: ${aiData.error.message || JSON.stringify(aiData.error)}` }, 500);
+              return jsonResponse({ error: `AI API error: ${aiData.error.message || JSON.stringify(aiData.error)}` }, 500, origin);
             }
             // fall through to fallback
           }
@@ -449,7 +465,7 @@ Rules:
             };
           });
 
-          return jsonResponse({ questions: fallback });
+          return jsonResponse({ questions: fallback }, 200, origin);
         }
 
         // GROQ proxy: proxies queries to Sanity's HTTP API using a secret token
@@ -458,11 +474,11 @@ Rules:
           const { projectId, dataset = 'production', query, params } = body;
 
           if (!projectId || !query) {
-            return jsonResponse({ error: 'projectId and query are required in body' }, 400);
+            return jsonResponse({ error: 'projectId and query are required in body' }, 400, origin);
           }
 
           if (!env || !env.SANITY_TOKEN) {
-            return jsonResponse({ error: 'SANITY_TOKEN not configured. Use `wrangler secret put SANITY_TOKEN`.' }, 400);
+            return jsonResponse({ error: 'SANITY_TOKEN not configured. Use `wrangler secret put SANITY_TOKEN`.' }, 400, origin);
           }
 
           const url = `https://${projectId}.api.sanity.io/v1/data/query/${dataset}`;
@@ -476,13 +492,15 @@ Rules:
             body: JSON.stringify({ query, params })
           }).catch(e => null);
 
-          if (!forwardResp) return jsonResponse({ error: 'Error contacting Sanity' }, 502);
+          if (!forwardResp) return jsonResponse({ error: 'Error contacting Sanity' }, 502, origin);
 
           const forwarded = await forwardResp.text().catch(() => null);
           try {
-            return new Response(forwarded, { status: forwardResp.status, headers: { 'Content-Type': 'application/json' } });
+            const proxyHeaders = getCorsHeaders(origin);
+            proxyHeaders['Content-Type'] = 'application/json;charset=UTF-8';
+            return new Response(forwarded, { status: forwardResp.status, headers: proxyHeaders });
           } catch (e) {
-            return jsonResponse({ error: 'Invalid response from Sanity' }, 502);
+            return jsonResponse({ error: 'Invalid response from Sanity' }, 502, origin);
           }
         }
 
@@ -498,44 +516,41 @@ Rules:
             const a = `Answer: ${q}`;
             cards.push({ id: `card_${Date.now()}_${i}`, front: q, back: a });
           }
-          return jsonResponse({ cards });
+          return jsonResponse({ cards }, 200, origin);
         }
 
       if (pathname.startsWith('/api/classes')) {
-        return handleCollection(request, pathname, env.CLASSES);
+        return handleCollection(request, pathname, env.CLASSES, origin);
       }
 
       if (pathname.startsWith('/api/quizzes')) {
-        return handleCollection(request, pathname, env.QUIZZES);
+        return handleCollection(request, pathname, env.QUIZZES, origin);
       }
 
       if (pathname.startsWith('/api/students')) {
-        return handleCollection(request, pathname, env.STUDENTS);
+        return handleCollection(request, pathname, env.STUDENTS, origin);
       }
 
       if (pathname.startsWith('/api/teachers')) {
-        return handleCollection(request, pathname, env.TEACHERS);
+        return handleCollection(request, pathname, env.TEACHERS, origin);
       }
 
       if (pathname.startsWith('/api/enrollments')) {
-        return handleCollection(request, pathname, env.ENROLLMENTS);
+        return handleCollection(request, pathname, env.ENROLLMENTS, origin);
       }
 
       if (pathname.startsWith('/api/attempts')) {
-        return handleCollection(request, pathname, env.QUIZZES);
+        return handleCollection(request, pathname, env.QUIZZES, origin);
       }
 
-      return jsonResponse({ error: 'Not found' }, 404);
+      return jsonResponse({ error: 'Not found' }, 404, origin);
     } catch (err) {
       console.error('Backend error:', err);
+      const errorHeaders = getCorsHeaders(origin);
+      errorHeaders['Content-Type'] = 'application/json;charset=UTF-8';
       return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
         status: 500,
-        headers: {
-          'Content-Type': 'application/json;charset=UTF-8',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type'
-        }
+        headers: errorHeaders
       });
     }
   }

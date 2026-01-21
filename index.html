@@ -419,7 +419,19 @@ if ('serviceWorker' in navigator) {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
   <script src="tailwindcss.js"></script>
-  <script src="app.js"></script>
+  <script>
+    if (typeof window.getTotalSets !== 'function') {
+      window.getTotalSets = function () {
+        const subjects = JSON.parse(localStorage.getItem('subjects') || '[]');
+        let total = 0;
+        subjects.forEach(subject => {
+          if (subject && Array.isArray(subject.sets)) total += subject.sets.length;
+        });
+        return total;
+      };
+    }
+  </script>
+  <script src="app.js?v=20260121b"></script>
 
   <!-- Dark Mode Script -->
   <script>

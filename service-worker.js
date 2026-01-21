@@ -1,18 +1,26 @@
-const CACHE_NAME = 'ec-eclassroom-v1';
+const CACHE_NAME = 'ec-eclassroom-v3';
 const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/styles.css',
-  '/tailwindcss.js',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  './',
+  './index.html',
+  './app.js',
+  './styles.css',
+  './tailwindcss.js',
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ];
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_ASSETS))
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.all(
+        PRECACHE_ASSETS.map(asset =>
+          cache.add(asset).catch(err => {
+            console.warn('Precache failed', asset, err);
+          })
+        )
+      )
+    )
   );
   self.skipWaiting();
 });

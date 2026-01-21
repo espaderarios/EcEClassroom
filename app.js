@@ -2519,15 +2519,8 @@ function renderBottomNav() {
     ">
       <button style="${tabStyle("browse", "📚", "Browse")}" onclick="goToBrowse()" aria-label="Browse flashcards" class="nav-tab ${activeBottomTab === 'browse' ? 'active' : ''}">
         <div class="icon-container" style="
-          width:32px;
-          height:32px;
-          border-radius:8px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          transition:all 0.3s ease;
-          background:${activeBottomTab === 'browse' ? 'rgba(59, 130, 246, 0.1)' : 'transparent'};
-        ">
+          width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all 0.3s ease;
+          background:${activeBottomTab === 'browse' ? 'rgba(59, 130, 246, 0.1)' : 'transparent'};">
           <span style="font-size:18px; margin-bottom:2px; transition:transform 0.3s ease;" class="${activeBottomTab === 'browse' ? 'scale-110' : ''}">📚</span>
         </div>
         <span style="margin-top:2px;">Browse</span>
@@ -2536,15 +2529,8 @@ function renderBottomNav() {
 
       <button style="${tabStyle("home", "🏠", "Home")}" onclick="goToHome()" aria-label="Go to home" class="nav-tab ${activeBottomTab === 'home' ? 'active' : ''}">
         <div class="icon-container" style="
-          width:32px;
-          height:32px;
-          border-radius:8px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          transition:all 0.3s ease;
-          background:${activeBottomTab === 'home' ? 'rgba(59, 130, 246, 0.1)' : 'transparent'};
-        ">
+          width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all 0.3s ease;
+          background:${activeBottomTab === 'home' ? 'rgba(59, 130, 246, 0.1)' : 'transparent'};">
           <span style="font-size:18px; margin-bottom:2px; transition:transform 0.3s ease;" class="${activeBottomTab === 'home' ? 'scale-110' : ''}">🏠</span>
         </div>
         <span style="margin-top:2px;">Home</span>
@@ -2553,15 +2539,8 @@ function renderBottomNav() {
 
       <button style="${tabStyle("pdfs", "📄", "PDFs")}" onclick="goToPdfs()" aria-label="View PDFs" class="nav-tab ${activeBottomTab === 'pdfs' ? 'active' : ''}">
         <div class="icon-container" style="
-          width:32px;
-          height:32px;
-          border-radius:8px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          transition:all 0.3s ease;
-          background:${activeBottomTab === 'pdfs' ? 'rgba(59, 130, 246, 0.1)' : 'transparent'};
-        ">
+          width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all 0.3s ease;
+          background:${activeBottomTab === 'pdfs' ? 'rgba(59, 130, 246, 0.1)' : 'transparent'};">
           <span style="font-size:18px; margin-bottom:2px; transition:transform 0.3s ease;" class="${activeBottomTab === 'pdfs' ? 'scale-110' : ''}">📄</span>
         </div>
         <span style="margin-top:2px;">PDFs</span>
@@ -2570,19 +2549,22 @@ function renderBottomNav() {
 
       <button style="${tabStyle("themes", "🎨", "Themes")}" onclick="goToThemes()" aria-label="Change themes" class="nav-tab ${activeBottomTab === 'themes' ? 'active' : ''}">
         <div class="icon-container" style="
-          width:32px;
-          height:32px;
-          border-radius:8px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          transition:all 0.3s ease;
-          background:${activeBottomTab === 'themes' ? 'rgba(59, 130, 246, 0.1)' : 'transparent'};
-        ">
+          width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all 0.3s ease;
+          background:${activeBottomTab === 'themes' ? 'rgba(59, 130, 246, 0.1)' : 'transparent'};">
           <span style="font-size:18px; margin-bottom:2px; transition:transform 0.3s ease;" class="${activeBottomTab === 'themes' ? 'scale-110' : ''}">🎨</span>
         </div>
         <span style="margin-top:2px;">Themes</span>
         ${activeIndicator("themes")}
+      </button>
+
+      <button style="${tabStyle("profile", "👤", "Profile")}" onclick="goToProfile()" aria-label="View profile" class="nav-tab ${activeBottomTab === 'profile' ? 'active' : ''}">
+        <div class="icon-container" style="
+          width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all 0.3s ease;
+          background:${activeBottomTab === 'profile' ? 'rgba(59, 130, 246, 0.1)' : 'transparent'};">
+          <span style="font-size:18px; margin-bottom:2px; transition:transform 0.3s ease;" class="${activeBottomTab === 'profile' ? 'scale-110' : ''}">👤</span>
+        </div>
+        <span style="margin-top:2px;">Profile</span>
+        ${activeIndicator("profile")}
       </button>
     </nav>
   `;
@@ -4015,6 +3997,19 @@ function openStudentQuiz() {
   renderApp();
 }
 
+function getTotalSets() {
+  const subjects = JSON.parse(localStorage.getItem('subjects') || '[]');
+  let totalSets = 0;
+  subjects.forEach(subject => {
+    if (subject.sets) totalSets += subject.sets.length;
+  });
+  return totalSets;
+} 
+
+if (typeof window !== 'undefined') {
+  window.getTotalSets = getTotalSets;
+}
+
 // ============= PROFILE & CLASS HELPER FUNCTIONS =============
 
 function handleProfilePictureUpload(file) {
@@ -4028,20 +4023,14 @@ function handleProfilePictureUpload(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const pictureUrl = e.target.result;
-    const profile = getStudentProfile();
-    profile.profilePictureUrl = pictureUrl;
-    saveStudentProfile(profile);
-    renderApp();
+    persistUnifiedProfile({ profilePictureUrl: pictureUrl }, { showToast: false });
     toast('✅ Profile picture uploaded');
   };
   reader.readAsDataURL(file);
 }
 
 function removeProfilePicture() {
-  const profile = getStudentProfile();
-  profile.profilePictureUrl = null;
-  saveStudentProfile(profile);
-  renderApp();
+  persistUnifiedProfile({ profilePictureUrl: null }, { showToast: false });
   toast('Profile picture removed');
 }
 
@@ -4055,12 +4044,11 @@ async function connectGoogle() {
   
   // If user is already authenticated with Google, just show info
   if (currentUser.provider === 'google' && currentUser.googleId) {
-    const profile = getStudentProfile();
-    profile.googleId = currentUser.googleId;
-    profile.googleEmail = currentUser.googleEmail || currentUser.email;
-    profile.profilePictureUrl = currentUser.picture || profile.profilePictureUrl;
-    saveStudentProfile(profile);
-    renderApp();
+    persistUnifiedProfile({
+      googleId: currentUser.googleId,
+      googleEmail: currentUser.googleEmail || currentUser.email,
+      profilePictureUrl: currentUser.picture || undefined
+    }, { showToast: false });
     toast('✅ Google account already connected');
     return;
   }
@@ -4076,32 +4064,27 @@ async function connectGoogle() {
 async function disconnectGoogle() {
   if (!confirm('Are you sure you want to disconnect your Google account? You can reconnect anytime.')) return;
   
-  const profile = getStudentProfile();
+  const profile = getUnifiedProfile();
   const currentUser = getUser();
   
-  // Clear Google info from profile
-  profile.googleId = null;
-  profile.googleEmail = null;
-  saveStudentProfile(profile);
+  persistUnifiedProfile({
+    googleId: null,
+    googleEmail: null
+  }, { showToast: false });
   
   // If currently logged in with Google, convert to guest/local user
   if (currentUser && currentUser.provider === 'google') {
     const newLocalUser = {
-      id: crypto.randomUUID(),
+      id: profile.id || crypto.randomUUID(),
       name: profile.name || currentUser.name,
-      email: profile.email || '',
+      email: profile.email || currentUser.email || '',
       role: 'student',
       authenticated: false
     };
     setUser(newLocalUser);
     window.isAuthenticated = false;
-    
-    // Update profile with new local ID
-    profile.id = newLocalUser.id;
-    saveStudentProfile(profile);
   }
-  
-  renderApp();
+
   toast('✅ Google account disconnected. You can continue using local data.');
 }
 
@@ -4458,11 +4441,11 @@ function renderStudentView() {
 
         <!-- Tab Content -->
         <div class="w-full animate-fadeIn">
-          ${studentTab === 'main'
-            ? renderJoinQuiz()
-            : studentTab === 'classes'
-            ? renderStudentClasses()
-            : renderStudentProfile()}
+            ${studentTab === 'main'
+              ? renderJoinQuiz()
+              : studentTab === 'classes'
+              ? renderStudentClasses()
+              : renderStudentClasses()}
         </div>
       </div>
     </div>
@@ -4608,6 +4591,404 @@ function renderStudentProfile() {
   `;
 }
 
+// ============= UNIFIED PROFILE VIEW =============
+function getUnifiedProfile() {
+  const user = getUser();
+  const studentProfile = getStudentProfile() || {};
+  const teacherProfile = getTeacherProfile() || {};
+
+  const combined = { ...studentProfile, ...teacherProfile };
+  const profile = {
+    id: combined.id || studentProfile.id || teacherProfile.id || user?.id || '',
+    name: combined.name || studentProfile.name || teacherProfile.name || user?.name || '',
+    email: combined.email || combined.googleEmail || studentProfile.email || teacherProfile.email || user?.email || '',
+    googleEmail: combined.googleEmail || user?.googleEmail || user?.email || '',
+    googleId: combined.googleId || user?.googleId || null,
+    profilePictureUrl: combined.profilePictureUrl || studentProfile.profilePictureUrl || teacherProfile.profilePictureUrl || user?.picture || null,
+    school: combined.school || '',
+    yearLevel: combined.yearLevel || '',
+    headline: combined.headline || '',
+    bio: combined.bio || '',
+    phone: combined.phone || '',
+    location: combined.location || '',
+    joinedAt: combined.joinedAt || studentProfile.joinedAt || teacherProfile.joinedAt || null,
+    updatedAt: combined.updatedAt || studentProfile.updatedAt || teacherProfile.updatedAt || null
+  };
+
+  if (!profile.joinedAt) {
+    profile.joinedAt = new Date().toISOString();
+  }
+
+  return profile;
+}
+
+function getUnifiedProfileStats(profile) {
+  const user = getUser();
+  const stats = {
+    subjects: getTotalSubjects(),
+    sets: getTotalSets(),
+    cards: getTotalCards(),
+    quizzesCreated: 0,
+    quizAttempts: 0,
+    classesCreated: 0,
+    classesEnrolled: 0
+  };
+
+  if (user) {
+    const quizKey = `teacher_quizzes_${user.id}`;
+    const quizzes = JSON.parse(localStorage.getItem(quizKey) || '[]');
+    stats.quizzesCreated = quizzes.length;
+
+    const teacherClasses = JSON.parse(localStorage.getItem(TEACHER_CLASSES_KEY) || '[]');
+    stats.classesCreated = teacherClasses.filter(c => c.teacherId === user.id).length;
+  }
+
+  if (profile?.id) {
+    const attempts = JSON.parse(localStorage.getItem('studentQuizScores') || '[]');
+    stats.quizAttempts = attempts.filter(a => a.studentId === profile.id).length;
+
+    const enrolledClasses = JSON.parse(localStorage.getItem(STUDENT_CLASSES_KEY) || '[]');
+    stats.classesEnrolled = enrolledClasses.filter(c => c.studentId === profile.id).length;
+  }
+
+  return stats;
+}
+
+function formatProfileDate(isoString) {
+  if (!isoString) return '—';
+  try {
+    return new Date(isoString).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch (err) {
+    return isoString;
+  }
+}
+
+function renderUnifiedProfileView() {
+  const user = getUser();
+  const profile = getUnifiedProfile();
+  const stats = getUnifiedProfileStats(profile);
+
+  const isGoogleConnected = !!profile.googleId || (user && user.provider === 'google' && user.googleId);
+  const accountStatusChip = isGoogleConnected
+    ? '<span class="chip chip-success">Google Connected</span>'
+    : '<span class="chip chip-warning">Google Not Linked</span>';
+
+  return `
+    <div class="w-full min-h-screen p-lg" style="background-color: var(--background);">
+      <div class="container max-w-5xl mx-auto space-y-2xl">
+        <div class="flex-between gap-lg flex-wrap">
+          <div>
+            <h1 class="text-3xl font-bold" style="color: var(--text);">My Profile</h1>
+            <p class="text-sm mt-sm" style="color: var(--text-muted);">Manage how you appear across EcEClassroom</p>
+          </div>
+          <div class="flex gap-sm">
+            ${accountStatusChip}
+            <button onclick="goToHome()" class="btn-secondary">← Back Home</button>
+          </div>
+        </div>
+
+        ${createCard(`
+          <div class="profile-hero grid grid-cols-1 md:grid-cols-[auto,1fr] gap-xl">
+            <div class="flex flex-col items-center md:items-start gap-lg">
+              <div class="relative w-32 h-32 rounded-full overflow-hidden border-4" style="border-color: var(--primary); background: var(--surface);">
+                ${profile.profilePictureUrl ? `
+                  <img src="${profile.profilePictureUrl}" alt="Profile" class="w-full h-full object-cover">
+                ` : `
+                  <div class="w-full h-full flex items-center justify-center text-5xl">👤</div>
+                `}
+              </div>
+              <div class="flex gap-md flex-wrap justify-center md:justify-start">
+                <label class="btn-primary text-sm cursor-pointer">
+                  📤 Upload Photo
+                  <input type="file" id="profile-picture-input" accept="image/*" style="display: none;" onchange="handleProfilePictureUpload(this.files[0])">
+                </label>
+                ${profile.profilePictureUrl ? `<button class="btn-danger text-sm" onclick="removeProfilePicture()">🗑 Remove Photo</button>` : ''}
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-lg">
+              <div>
+                <h2 class="text-3xl font-bold" style="color: var(--text);">${profile.name || 'Add Your Name'}</h2>
+                <p class="text-lg mt-sm" style="color: var(--text-muted);">${profile.headline || 'Tell classmates and teachers more about yourself'}</p>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                <div class="info-row">
+                  <span class="info-label">Email</span>
+                  <span class="info-value">${profile.email || profile.googleEmail || 'Not provided'}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">User ID</span>
+                  <span class="info-value">${profile.id || 'Not set'}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">School / Organization</span>
+                  <span class="info-value">${profile.school || 'Not set'}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Year Level / Position</span>
+                  <span class="info-value">${profile.yearLevel || 'Not set'}</span>
+                </div>
+              </div>
+              <div class="flex gap-md flex-wrap">
+                <button class="btn-${isGoogleConnected ? 'danger' : 'primary'} text-sm" onclick="${isGoogleConnected ? 'disconnectGoogle()' : 'connectGoogle()'}">
+                  ${isGoogleConnected ? 'Disconnect Google' : 'Connect Google Account'}
+                </button>
+                <button class="btn-secondary text-sm" onclick="saveUnifiedProfile()">💾 Save Profile</button>
+              </div>
+            </div>
+          </div>
+        `, { className: 'mb-xl' })}
+
+        ${createCard(`
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-lg">
+            ${[
+              { label: 'Subjects', value: stats.subjects, icon: '📚', color: 'var(--primary)' },
+              { label: 'Sets', value: stats.sets, icon: '🗂', color: 'var(--success)' },
+              { label: 'Cards', value: stats.cards, icon: '🧠', color: 'var(--accent)' },
+              { label: 'Quiz Attempts', value: stats.quizAttempts, icon: '🎯', color: 'var(--warning)' }
+            ].map(stat => `
+              <div class="text-center rounded-lg p-lg" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border);">
+                <div class="text-3xl" style="color:${stat.color};">${stat.icon}</div>
+                <div class="text-2xl font-bold" style="color:${stat.color};">${stat.value}</div>
+                <div class="text-sm mt-sm" style="color: var(--text-muted);">${stat.label}</div>
+              </div>
+            `).join('')}
+          </div>
+        `, { className: 'mb-xl' })}
+
+        ${createCard(`
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-xl">
+            <div>
+              <h3 class="text-lg font-semibold mb-sm">About</h3>
+              <p style="color: var(--text-muted); white-space: pre-line;">${profile.bio || 'Share a short bio so classmates and instructors can get to know you.'}</p>
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold mb-sm">Connections</h3>
+              <ul class="space-y-sm text-sm" style="color: var(--text-muted);">
+                <li>${stats.classesEnrolled} class${stats.classesEnrolled === 1 ? '' : 'es'} enrolled</li>
+                <li>${stats.classesCreated} class${stats.classesCreated === 1 ? '' : 'es'} managed</li>
+                <li>${stats.quizzesCreated} quiz${stats.quizzesCreated === 1 ? '' : 'zes'} created</li>
+              </ul>
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold mb-sm">Account activity</h3>
+              <ul class="space-y-sm text-sm" style="color: var(--text-muted);">
+                <li>Joined ${formatProfileDate(profile.joinedAt)}</li>
+                <li>Updated ${formatProfileDate(profile.updatedAt)}</li>
+                <li>${user?.authenticated ? 'Cloud sync enabled' : 'Local-only mode'}</li>
+              </ul>
+            </div>
+          </div>
+        `, { className: 'mb-xl' })}
+
+        ${createCard(`
+          <div class="space-y-lg">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+              <div class="form-group">
+                <label for="profile-name" class="block font-semibold mb-sm">📝 Full Name</label>
+                <input id="profile-name" class="w-full p-md border-2 rounded-lg transition-colors"
+                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                       placeholder="Enter your full name" value="${profile.name || ''}">
+              </div>
+              <div class="form-group">
+                <label for="profile-email" class="block font-semibold mb-sm">✉️ Email</label>
+                <input id="profile-email" type="email" class="w-full p-md border-2 rounded-lg transition-colors"
+                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                       placeholder="your.email@gmail.com" value="${profile.email || profile.googleEmail || ''}">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+              <div class="form-group">
+                <label for="profile-student-id" class="block font-semibold mb-sm">🆔 User ID</label>
+                <input id="profile-student-id" class="w-full p-md border-2 rounded-lg transition-colors"
+                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                       placeholder="Enter your ID" value="${profile.id || ''}">
+              </div>
+              <div class="form-group">
+                <label for="profile-school" class="block font-semibold mb-sm">🏫 School / Organization</label>
+                <input id="profile-school" class="w-full p-md border-2 rounded-lg transition-colors"
+                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                       placeholder="Add where you study or teach" value="${profile.school || ''}">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+              <div class="form-group">
+                <label for="profile-year-level" class="block font-semibold mb-sm">📊 Year Level / Position</label>
+                <select id="profile-year-level" class="w-full p-md border-2 rounded-lg transition-colors"
+                        style="border-color: var(--border); background: var(--card-bg); color: var(--text);">
+                  <option value="">Select Level</option>
+                  <optgroup label="High School">
+                    <option value="Grade 7" ${profile.yearLevel === 'Grade 7' ? 'selected' : ''}>Grade 7</option>
+                    <option value="Grade 8" ${profile.yearLevel === 'Grade 8' ? 'selected' : ''}>Grade 8</option>
+                    <option value="Grade 9" ${profile.yearLevel === 'Grade 9' ? 'selected' : ''}>Grade 9</option>
+                    <option value="Grade 10" ${profile.yearLevel === 'Grade 10' ? 'selected' : ''}>Grade 10</option>
+                    <option value="Grade 11" ${profile.yearLevel === 'Grade 11' ? 'selected' : ''}>Grade 11</option>
+                    <option value="Grade 12" ${profile.yearLevel === 'Grade 12' ? 'selected' : ''}>Grade 12</option>
+                  </optgroup>
+                  <optgroup label="College">
+                    <option value="1st Year" ${profile.yearLevel === '1st Year' ? 'selected' : ''}>1st Year</option>
+                    <option value="2nd Year" ${profile.yearLevel === '2nd Year' ? 'selected' : ''}>2nd Year</option>
+                    <option value="3rd Year" ${profile.yearLevel === '3rd Year' ? 'selected' : ''}>3rd Year</option>
+                    <option value="4th Year" ${profile.yearLevel === '4th Year' ? 'selected' : ''}>4th Year</option>
+                  </optgroup>
+                  <optgroup label="Teacher">
+                    <option value="Educator" ${profile.yearLevel === 'Educator' ? 'selected' : ''}>Educator</option>
+                    <option value="Administrator" ${profile.yearLevel === 'Administrator' ? 'selected' : ''}>Administrator</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="profile-location" class="block font-semibold mb-sm">📍 Location</label>
+                <input id="profile-location" class="w-full p-md border-2 rounded-lg transition-colors"
+                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                       placeholder="City, Country" value="${profile.location || ''}">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+              <div class="form-group">
+                <label for="profile-phone" class="block font-semibold mb-sm">📞 Contact Number</label>
+                <input id="profile-phone" class="w-full p-md border-2 rounded-lg transition-colors"
+                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                       placeholder="Optional contact number" value="${profile.phone || ''}">
+              </div>
+              <div class="form-group">
+                <label for="profile-headline" class="block font-semibold mb-sm">💼 Headline</label>
+                <input id="profile-headline" class="w-full p-md border-2 rounded-lg transition-colors"
+                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                       placeholder="Student, Electronics Enthusiast" value="${profile.headline || ''}">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="profile-bio" class="block font-semibold mb-sm">🧾 Bio</label>
+              <textarea id="profile-bio" rows="4" class="w-full p-md border-2 rounded-lg transition-colors"
+                        style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                        placeholder="Share your goals, interests, or achievements">${profile.bio || ''}</textarea>
+            </div>
+          </div>
+        `, {
+          className: 'mb-xl',
+          footer: `
+            <div class="flex gap-lg justify-end flex-wrap">
+              <button class="btn-secondary" onclick="goToHome()">Cancel</button>
+              <button class="btn-primary" onclick="saveUnifiedProfile()">💾 Save Changes</button>
+            </div>
+          `
+        })}
+      </div>
+    </div>
+  `;
+}
+
+function persistUnifiedProfile(updates, { showToast = true, stayOnPage = true } = {}) {
+  const timestamp = new Date().toISOString();
+  const existingStudent = getStudentProfile() || {};
+  const existingTeacher = getTeacherProfile() || {};
+  const profileId = updates.id || existingStudent.id || existingTeacher.id || getUnifiedProfile().id || crypto.randomUUID();
+
+  const studentPayload = {
+    ...existingStudent,
+    ...updates,
+    id: profileId,
+    updatedAt: timestamp,
+    joinedAt: existingStudent.joinedAt || updates.joinedAt || timestamp
+  };
+
+  const teacherPayload = {
+    ...existingTeacher,
+    ...updates,
+    id: profileId,
+    updatedAt: timestamp,
+    joinedAt: existingTeacher.joinedAt || updates.joinedAt || timestamp
+  };
+
+  // Persist student profile (sync handled inside helper)
+  saveStudentProfile(studentPayload);
+
+  // Persist teacher profile without triggering tab changes
+  localStorage.setItem('teacherProfile', JSON.stringify(teacherPayload));
+  syncTeacherProfileToBackend(teacherPayload);
+
+  // Update current student context
+  window.currentStudent = {
+    name: studentPayload.name,
+    id: studentPayload.id,
+    email: studentPayload.email
+  };
+  localStorage.setItem('currentStudent', JSON.stringify(window.currentStudent));
+
+  // Keep global user object in sync when available
+  const user = getUser();
+  if (user) {
+    const updatedUser = {
+      ...user,
+      name: studentPayload.name || user.name,
+      email: studentPayload.email || user.email,
+      picture: studentPayload.profilePictureUrl || user.picture,
+      id: user.id || studentPayload.id
+    };
+    if (typeof setUser === 'function') {
+      setUser(updatedUser);
+    } else {
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      sessionStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+  }
+
+  if (showToast) {
+    toast('✅ Profile saved successfully');
+  }
+
+  if (stayOnPage) {
+    currentView = 'profile';
+    renderApp();
+  }
+}
+
+function saveUnifiedProfile() {
+  const name = document.getElementById('profile-name')?.value?.trim();
+  const email = document.getElementById('profile-email')?.value?.trim();
+  const id = document.getElementById('profile-student-id')?.value?.trim();
+  const school = document.getElementById('profile-school')?.value?.trim();
+  const yearLevel = document.getElementById('profile-year-level')?.value?.trim();
+  const location = document.getElementById('profile-location')?.value?.trim();
+  const phone = document.getElementById('profile-phone')?.value?.trim();
+  const headline = document.getElementById('profile-headline')?.value?.trim();
+  const bio = document.getElementById('profile-bio')?.value?.trim();
+
+  if (!name) {
+    toast('❌ Name is required');
+    return;
+  }
+
+  const currentProfile = getUnifiedProfile();
+
+  persistUnifiedProfile({
+    ...currentProfile,
+    name,
+    email,
+    id: id || currentProfile.id || crypto.randomUUID(),
+    school,
+    yearLevel,
+    location,
+    phone,
+    headline,
+    bio
+  });
+}
+
+function goToProfile() {
+  activeBottomTab = "profile";
+  currentView = "profile";
+  renderApp();
+}
 
 
 
@@ -4820,10 +5201,10 @@ function renderTeacherView() {
       <!-- Content -->
       <div class="mt-4 w-full max-w-4xl">
         ${teacherTab === 'main'
-          ? renderTeacherQuizList()
+           ? renderTeacherQuizList()
           : teacherTab === 'classes'
           ? renderTeacherClasses()
-          : renderTeacherProfile()}
+          : renderTeacherClasses()}
       </div>
 
     </div>
@@ -7922,6 +8303,8 @@ function renderApp() {
     content = renderPdfsView();
   } else if (currentView === "pdf-viewer") {
     content = renderPdfViewerView();
+  } else if (currentView === "profile") {
+  content = renderUnifiedProfileView();
   } else if (currentView === "teacher") {
     content = renderTeacherView();
   } else if (currentView === "student") {
@@ -7988,7 +8371,7 @@ function renderApp() {
     attachCardsViewListeners();
   }
 
-  const showBottomNav = ["home", "browse", "pdfs", "themes"].includes(currentView);
+  const showBottomNav = ["home", "browse", "pdfs", "themes", "profile"].includes(currentView);
   document.body.classList.toggle("bottom-nav-visible", showBottomNav);
 
   if (showBottomNav) {
