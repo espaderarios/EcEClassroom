@@ -30,8 +30,66 @@ function toast(message, duration = 3000) {
   el.className = 'toast';
   document.getElementById('toast-container').appendChild(el);
   setTimeout(() => {
-    if (el.parentNode) el.parentNode.removeChild(el);
+    el.classList.add('out');
+    setTimeout(() => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 300);
   }, duration);
+}
+
+// ============= MODERN DESIGN HELPERS =============
+
+/**
+ * Wrapper for modern card layout
+ */
+function createCard(content, { header = null, footer = null, elevated = false, className = '' } = {}) {
+  let headerHtml = '';
+  let footerHtml = '';
+  
+  if (header) {
+    headerHtml = `<div class="card-header">${header}</div>`;
+  }
+  
+  if (footer) {
+    footerHtml = `<div class="card-footer">${footer}</div>`;
+  }
+  
+  return `<div class="card ${elevated ? 'elevated' : ''} ${className} animate-slideInUp">${headerHtml}<div class="card-body">${content}</div>${footerHtml}</div>`;
+}
+
+/**
+ * Create a modern button with consistent styling
+ */
+function createButton(text, { onclick = '', variant = 'primary', icon = '', className = '' } = {}) {
+  const variants = {
+    primary: 'btn-primary',
+    secondary: 'btn-secondary',
+    success: 'btn-success',
+    danger: 'btn-danger',
+    text: 'btn-text'
+  };
+  
+  return `<button class="${variants[variant] || 'btn-primary'} ${className}" onclick="${onclick}">${icon ? `${icon} ` : ''}${text}</button>`;
+}
+
+/**
+ * Modern grid container
+ */
+function createGrid(items, { columns = 'grid-cols-2', gap = 'gap-lg' } = {}) {
+  return `<div class="grid ${columns} ${gap}">${items.join('')}</div>`;
+}
+
+/**
+ * Modern section with consistent spacing
+ */
+function createSection(title, content, { subtitle = '' } = {}) {
+  return `
+    <section class="p-xl">
+      <h2 class="text-2xl font-bold mb-md">${title}</h2>
+      ${subtitle ? `<p class="text-muted mb-lg">${subtitle}</p>` : ''}
+      ${content}
+    </section>
+  `;
 }
 
 function saveTeacherDraft(title, questions, timeLimit = 0) {
@@ -60,13 +118,30 @@ function saveStudentProfile(profileData) {
 }
 
 function getStudentProfile() {
+  const user = getUser();
   const profile = JSON.parse(localStorage.getItem(STUDENT_PROFILE_KEY) || "{}");
+  
+  // If user is logged in with Google, use Google data as primary source
+  if (user && user.provider === 'google') {
+    return {
+      ...profile,
+      name: user.name || profile.name || "",
+      email: user.email || profile.email || "",
+      googleId: user.googleId || profile.googleId,
+      googleEmail: user.googleEmail || user.email || profile.googleEmail,
+      profilePictureUrl: user.picture || profile.profilePictureUrl,
+      id: profile.id || user.id,
+      school: profile.school || "",
+      yearLevel: profile.yearLevel || ""
+    };
+  }
+  
   return profile || {
     name: window.currentStudent?.name || "",
     id: window.currentStudent?.id || "",
     email: "",
     school: "",
-    grade: "",
+    yearLevel: "",
     profilePictureUrl: null,
     googleId: null,
     googleEmail: null
@@ -250,6 +325,128 @@ function setBackendUrl(url) {
 
 // ============= BACKEND SYNC FUNCTIONS =============
 
+async function syncQuizToBackend(quiz) {
+  const user = getUser();
+  if (!user || !user.authenticated) return null;
+  
+  try {
+    const quizData = {
+      ...quiz,
+      userId: user.id,
+      userEmail: user.email,
+      lastSyncedAt: new Date().toISOString()
+    };
+    
+    const response = await fetch(`${getBackendUrl()}/api/quizzes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(quizData)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Quiz synced to backend:', data);
+      return data;
+    } else {
+      console.log('Failed to sync quiz:', response.status);
+    }
+  } catch (error) {
+    console.log('Quiz sync error:', error);
+  }
+  return null;
+}
+
+async function loadQuizzesFromBackend() {
+  const user = getUser();
+  if (!user || !user.authenticated) return [];
+  
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/quizzes`);
+    if (!response.ok) return [];
+    
+    const quizzes = await response.json();
+    
+    if (Array.isArray(quizzes)) {
+      // Filter quizzes for current user
+      const userQuizzes = quizzes.filter(q => q.userId === user.id);
+      console.log(`Loaded ${userQuizzes.length} quizzes from backend`);
+      return userQuizzes;
+    }
+  } catch (error) {
+    console.log('Failed to load quizzes from backend:', error);
+  }
+  return [];
+}
+
+async function loadStudentAttemptsFromBackend() {
+  const user = getUser();
+  if (!user || !user.authenticated) return [];
+  
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/attempts`);
+    if (!response.ok) return [];
+    
+    const attempts = await response.json();
+    
+    if (Array.isArray(attempts)) {
+      // Filter attempts for current user
+      const userAttempts = attempts.filter(a => a.studentId === user.id);
+      console.log(`Loaded ${userAttempts.length} quiz attempts from backend`);
+      return userAttempts;
+    }
+  } catch (error) {
+    console.log('Failed to load attempts from backend:', error);
+  }
+  return [];
+}
+
+async function saveQuizAttemptToBackend(attempt) {
+  const user = getUser();
+  if (!user || !user.authenticated) return null;
+  
+  try {
+    const attemptData = {
+      ...attempt,
+      studentId: user.id,
+      studentEmail: user.email,
+      timestamp: new Date().toISOString()
+    };
+    
+    const response = await fetch(`${getBackendUrl()}/api/attempts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(attemptData)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Quiz attempt saved to backend');
+      return data;
+    }
+  } catch (error) {
+    console.log('Failed to save quiz attempt:', error);
+  }
+  return null;
+}
+
+async function linkGoogleAccountToLocalUser(localUserId, googleUserId) {
+  try {
+    const response = await fetch(`${getBackendUrl()}/auth/link-google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ localUserId, googleUserId })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+  } catch (error) {
+    console.log('Failed to link accounts on backend:', error);
+  }
+  return null;
+}
+
 async function syncClassToBackend(classData) {
   try {
     const response = await fetch(`${getBackendUrl()}/api/classes`, {
@@ -412,11 +609,38 @@ async function loadEnrollmentsFromBackend() {
 async function initBackendSync() {
   console.log('🔄 Syncing with backend...');
   
+  const user = getUser();
+  
   // Load all data from backend
   await Promise.all([
     loadClassesFromBackend(),
     loadEnrollmentsFromBackend()
   ]);
+  
+  // Load quizzes if authenticated with Google
+  if (user && user.authenticated && user.provider === 'google') {
+    console.log('📚 Loading quizzes from backend...');
+    await getTeacherQuizzes();
+    
+    console.log('📋 Loading quiz attempts from backend...');
+    const attempts = await loadStudentAttemptsFromBackend();
+    if (attempts.length > 0) {
+      const key = 'studentQuizScores';
+      const localAttempts = JSON.parse(localStorage.getItem(key) || '[]');
+      
+      // Merge backend attempts with local ones
+      const attemptMap = new Map();
+      attempts.forEach(a => attemptMap.set(a.id, a));
+      localAttempts.forEach(a => {
+        if (a.id && !attemptMap.has(a.id)) {
+          attemptMap.set(a.id, a);
+        }
+      });
+      
+      localStorage.setItem(key, JSON.stringify(Array.from(attemptMap.values())));
+      console.log(`✅ Synced ${attempts.length} quiz attempts`);
+    }
+  }
   
   // Load user-specific profiles if logged in
   if (window.currentStudent?.id) {
@@ -3668,128 +3892,107 @@ document.addEventListener("change", function (e) {
 
 
 function renderHomeView() {
+  const user = getUser();
+  
   return `
-    <div class="mobile-optimized w-full h-full flex items-center justify-center p-4 relative overflow-hidden" style="background: linear-gradient(135deg, var(--background) 0%, var(--surface) 50%, var(--background) 100%); background-image: var(--background-image); background-size: cover; background-position: center;">
-      <!-- Animated background elements -->
-      <div class="absolute inset-0 opacity-5">
-        <div class="absolute top-10 left-10 text-6xl animate-bounce" style="animation-delay: 0s; color: var(--primary);">📚</div>
-        <div class="absolute top-20 right-20 text-4xl animate-pulse" style="animation-delay: 1s; color: var(--secondary);">🃏</div>
-        <div class="absolute bottom-20 left-20 text-5xl animate-bounce" style="animation-delay: 2s; color: var(--accent);">🎯</div>
-        <div class="absolute bottom-10 right-10 text-3xl animate-pulse" style="animation-delay: 0.5s; color: var(--success);">📖</div>
-      </div>
-
-      <div class="max-w-md w-full text-center fade-in card p-8 relative z-10" style="box-shadow: var(--shadow-xl); background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border);">
-
-        <!-- User Profile Section -->
-        <div style="
-          background:var(--surface);
-          border-radius:12px;
-          padding:12px;
-          margin-bottom:16px;
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          border:1px solid var(--border);
-        ">
-          <div style="text-align:left; flex:1;">
-            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">
-              ${window.isAuthenticated ? '☁️ Cloud Sync Enabled' : '💾 Local Data Only'}
+    <div class="w-full min-h-screen p-lg" style="background-color: var(--background);">
+      <div class="container max-w-4xl mx-auto">
+        <!-- Welcome Section -->
+        <div class="animate-slideInUp mb-2xl">
+          <div class="flex flex-col items-center text-center mb-xl">
+            <div class="w-20 h-20 rounded-full flex items-center justify-center mb-lg" style="background: linear-gradient(135deg, var(--primary), var(--accent)); font-size: 2.5rem;">
+              🎓
             </div>
-            <div style="font-weight:600; color:var(--text);">
-              ${getUser().name || 'Guest'}
-            </div>
-          </div>
-          ${window.isAuthenticated ? `
-            <button onclick="confirmLogout()" style="
-              padding:8px 12px;
-              background:var(--error, #ef4444);
-              color:white;
-              border:none;
-              border-radius:6px;
-              font-size:12px;
-              font-weight:600;
-              cursor:pointer;
-              transition:all 0.2s ease;
-            " onmouseover="this.style.opacity='0.85';" onmouseout="this.style.opacity='1';">
-              Logout
-            </button>
-          ` : ''}
-        </div>
-
-        <div class="mb-8">
-          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 shadow-lg" style="background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); box-shadow: var(--shadow-lg);">
-            <span class="text-3xl">🎓</span>
-          </div>
-          <h1 class="text-3xl font-bold mb-3 bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] bg-clip-text text-transparent" style="font-family: var(--font-family-heading); font-weight: var(--font-weight-bold);">
-            Study Hub
-          </h1>
-          <p class="text-lg leading-relaxed" style="color: var(--text-muted); font-family: var(--font-family);">
-            Master your subjects with interactive flashcards and quizzes
-          </p>
-        </div>
-
-        <div class="flex flex-col gap-4">
-
-          <!-- Flashcards -->
-          <button
-            type="button"
-            onclick="openFlashcards()"
-            class="btn-primary w-full py-6 text-lg font-semibold quiz-option group relative overflow-hidden"
-            style="box-shadow: var(--shadow-lg); min-height: 64px; border-radius: var(--radius-lg); background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); font-family: var(--font-family); font-weight: var(--font-weight-semibold);"
-          >
-            <div class="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300" style="background: var(--text);"></div>
-            <div class="flex items-center justify-center gap-3 relative z-10">
-              <span class="text-2xl">🃏</span>
-              <span style="color: var(--text);">Flashcards</span>
-            </div>
-          </button>
-
-          <!-- Teacher Quiz -->
-          <button
-            onclick="openTeacherQuiz()"
-            class="btn-secondary w-full py-6 text-lg font-semibold quiz-option group relative overflow-hidden"
-            style="min-height: 64px; border-radius: var(--radius-lg); background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%); box-shadow: var(--shadow); font-family: var(--font-family); font-weight: var(--font-weight-semibold);"
-          >
-            <div class="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300" style="background: var(--text);"></div>
-            <div class="flex items-center justify-center gap-3 relative z-10">
-              <span class="text-2xl">👩‍🏫</span>
-              <span style="color: var(--text);">Create Quiz</span>
-            </div>
-          </button>
-
-          <!-- Student Quiz -->
-          <button
-            onclick="openStudentQuiz()"
-            class="btn-secondary w-full py-6 text-lg font-semibold quiz-option group relative overflow-hidden"
-            style="min-height: 64px; border-radius: var(--radius-lg); background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%); box-shadow: var(--shadow); font-family: var(--font-family); font-weight: var(--font-weight-semibold);"
-          >
-            <div class="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300" style="background: var(--text);"></div>
-            <div class="flex items-center justify-center gap-3 relative z-10">
-              <span class="text-2xl">👨‍🎓</span>
-              <span style="color: var(--text);">Join Quiz</span>
-            </div>
-          </button>
-
-        </div>
-
-        <!-- Quick stats -->
-        <div class="mt-8 pt-6" style="border-top: 1px solid var(--border);">
-          <div class="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <div class="text-2xl font-bold" style="color: var(--primary); font-weight: var(--font-weight-bold);">${getTotalSubjects()}</div>
-              <div class="text-xs" style="color: var(--text-muted);">Subjects</div>
-            </div>
-            <div>
-              <div class="text-2xl font-bold" style="color: var(--success); font-weight: var(--font-weight-bold);">${getTotalCards()}</div>
-              <div class="text-xs" style="color: var(--text-muted);">Cards</div>
-            </div>
-            <div>
-              <div class="text-2xl font-bold" style="color: var(--accent); font-weight: var(--font-weight-bold);">${getTotalQuizzes()}</div>
-              <div class="text-xs" style="color: var(--text-muted);">Quizzes</div>
-            </div>
+            <h1 class="text-4xl font-bold mb-md" style="color: var(--text);">Study Hub</h1>
+            <p class="text-lg" style="color: var(--text-muted); max-width: 500px;">
+              Master your subjects with interactive flashcards and quizzes
+            </p>
           </div>
         </div>
 
+        <!-- User Status Card -->
+        ${createCard(`
+          <div class="flex-between gap-lg">
+            <div>
+              <div class="text-sm font-medium" style="color: var(--text-muted); margin-bottom: var(--spacing-sm);">
+                ${window.isAuthenticated ? '☁️ Cloud Sync Enabled' : '💾 Local Data Only'}
+              </div>
+              <div class="text-xl font-semibold" style="color: var(--text);">
+                Welcome, ${user.name || 'Guest'}
+              </div>
+            </div>
+            ${window.isAuthenticated ? `<button class="btn-danger text-sm" onclick="confirmLogout()">Logout</button>` : ''}
+          </div>
+        `, { className: 'mb-xl' })}
+
+        <!-- Main Actions Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-lg mb-2xl">
+          <!-- Flashcards Card -->
+          ${createCard(`
+            <div class="text-center">
+              <div class="text-4xl mb-md">🃏</div>
+              <h3 class="text-xl font-semibold mb-md">Flashcards</h3>
+              <p style="color: var(--text-muted); margin-bottom: var(--spacing-lg);">
+                Study with interactive flashcards
+              </p>
+              <button class="btn-primary w-full" onclick="openFlashcards()">
+                Start Studying
+              </button>
+            </div>
+          `, { elevated: true })}
+
+          <!-- Create Quiz Card -->
+          ${createCard(`
+            <div class="text-center">
+              <div class="text-4xl mb-md">👩‍🏫</div>
+              <h3 class="text-xl font-semibold mb-md">Create Quiz</h3>
+              <p style="color: var(--text-muted); margin-bottom: var(--spacing-lg);">
+                Design and share quizzes
+              </p>
+              <button class="btn-primary w-full" onclick="openTeacherQuiz()">
+                New Quiz
+              </button>
+            </div>
+          `, { elevated: true })}
+
+          <!-- Join Quiz Card -->
+          ${createCard(`
+            <div class="text-center">
+              <div class="text-4xl mb-md">👨‍🎓</div>
+              <h3 class="text-xl font-semibold mb-md">Join Quiz</h3>
+              <p style="color: var(--text-muted); margin-bottom: var(--spacing-lg);">
+                Take quizzes with class code
+              </p>
+              <button class="btn-primary w-full" onclick="openStudentQuiz()">
+                Join Now
+              </button>
+            </div>
+          `, { elevated: true })}
+        </div>
+
+        <!-- Stats Section -->
+        <div class="grid grid-cols-3 gap-lg">
+          ${createCard(`
+            <div class="text-center">
+              <div class="text-3xl font-bold" style="color: var(--primary);">${getTotalSubjects()}</div>
+              <div class="text-sm mt-md" style="color: var(--text-muted);">Subjects</div>
+            </div>
+          `)}
+
+          ${createCard(`
+            <div class="text-center">
+              <div class="text-3xl font-bold" style="color: var(--accent);">${getTotalCards()}</div>
+              <div class="text-sm mt-md" style="color: var(--text-muted);">Cards</div>
+            </div>
+          `)}
+
+          ${createCard(`
+            <div class="text-center">
+              <div class="text-3xl font-bold" style="color: var(--success);">${getTotalSets()}</div>
+              <div class="text-sm mt-md" style="color: var(--text-muted);">Sets</div>
+            </div>
+          `)}
+        </div>
       </div>
     </div>
   `;
@@ -3842,52 +4045,95 @@ function removeProfilePicture() {
   toast('Profile picture removed');
 }
 
-function connectGoogle() {
-  const email = prompt('Enter your Google email:');
-  if (!email) return;
+async function connectGoogle() {
+  const currentUser = getUser();
   
-  const profile = getStudentProfile();
-  profile.googleId = `google_${Date.now()}`;
-  profile.googleEmail = email;
-  saveStudentProfile(profile);
-  renderApp();
-  toast('✅ Google account connected');
+  if (!currentUser) {
+    toast('❌ Please log in first');
+    return;
+  }
+  
+  // If user is already authenticated with Google, just show info
+  if (currentUser.provider === 'google' && currentUser.googleId) {
+    const profile = getStudentProfile();
+    profile.googleId = currentUser.googleId;
+    profile.googleEmail = currentUser.googleEmail || currentUser.email;
+    profile.profilePictureUrl = currentUser.picture || profile.profilePictureUrl;
+    saveStudentProfile(profile);
+    renderApp();
+    toast('✅ Google account already connected');
+    return;
+  }
+  
+  // Store current user ID to link after OAuth
+  localStorage.setItem('pending_google_link_user', currentUser.id);
+  
+  // Redirect to Google OAuth
+  const backendOrigin = 'https://ec-eclassroom-backend.espaderarios.workers.dev';
+  window.location.href = backendOrigin + '/auth/google/start';
 }
 
-function disconnectGoogle() {
-  if (!confirm('Are you sure you want to disconnect your Google account?')) return;
+async function disconnectGoogle() {
+  if (!confirm('Are you sure you want to disconnect your Google account? You can reconnect anytime.')) return;
   
   const profile = getStudentProfile();
+  const currentUser = getUser();
+  
+  // Clear Google info from profile
   profile.googleId = null;
   profile.googleEmail = null;
   saveStudentProfile(profile);
+  
+  // If currently logged in with Google, convert to guest/local user
+  if (currentUser && currentUser.provider === 'google') {
+    const newLocalUser = {
+      id: crypto.randomUUID(),
+      name: profile.name || currentUser.name,
+      email: profile.email || '',
+      role: 'student',
+      authenticated: false
+    };
+    setUser(newLocalUser);
+    window.isAuthenticated = false;
+    
+    // Update profile with new local ID
+    profile.id = newLocalUser.id;
+    saveStudentProfile(profile);
+  }
+  
   renderApp();
-  toast('Google account disconnected');
+  toast('✅ Google account disconnected. You can continue using local data.');
 }
 
 function saveEnhancedProfile() {
   const name = document.getElementById('profile-name')?.value?.trim();
-  const studentId = document.getElementById('profile-student-id')?.value?.trim();
   const email = document.getElementById('profile-email')?.value?.trim();
+  const studentId = document.getElementById('profile-student-id')?.value?.trim();
   const school = document.getElementById('profile-school')?.value?.trim();
-  const grade = document.getElementById('profile-grade')?.value?.trim();
+  const yearLevel = document.getElementById('profile-year-level')?.value?.trim();
   
-  if (!name || !studentId) {
-    toast('❌ Name and Student ID are required');
+  if (!name) {
+    toast('❌ Name is required');
     return;
   }
   
   const profile = getStudentProfile();
   profile.name = name;
-  profile.id = studentId;
   profile.email = email;
+  profile.id = studentId || profile.id || crypto.randomUUID();
   profile.school = school;
-  profile.grade = grade;
+  profile.yearLevel = yearLevel;
   
   saveStudentProfile(profile);
-  window.currentStudent = profile;
-  localStorage.setItem('currentStudent', JSON.stringify(profile));
+  window.currentStudent = {
+    name: profile.name,
+    id: profile.id,
+    email: profile.email
+  };
+  localStorage.setItem('currentStudent', JSON.stringify(window.currentStudent));
   
+  // Keep profile tab active after saving so user sees saved data persist
+  studentTab = 'profile';
   renderApp();
   toast('✅ Profile saved successfully');
 }
@@ -3938,7 +4184,7 @@ function startClassQuiz(quizId) {
   const attempts = getStudentQuizAttempts(studentId, quizId);
   
   if (attempts.length >= attemptLimit) {
-    toast(`❌ You have reached the maximum of ${attemptLimit} attempt(s) for this quiz`);
+    toast('You have reached the maximum of ' + attemptLimit + ' attempt(s) for this quiz');
     return;
   }
   
@@ -4052,8 +4298,7 @@ function openAddQuizToClassModal(classId) {
   
   quizzes.forEach(quiz => {
     html += `
-      <div style="background: var(--input-bg); padding: 10px; border-radius: 6px; margin-bottom: 10px; cursor: pointer;"
-           onclick="assignQuizToClass('${classId}', '${quiz.quizId || quiz.id}'); toast('✅ Quiz added to class')">
+      <div style="background: var(--input-bg); padding: 10px; border-radius: 6px; margin-bottom: 10px; cursor: pointer;" onclick="assignQuizToClass('${classId}', '${quiz.quizId || quiz.id}'); toast('Quiz added to class')">
         <p style="font-weight: bold;">${quiz.title || quiz.quizName || 'Untitled Quiz'}</p>
         <p style="font-size: 12px; color: var(--on-surface-variant);">${quiz.questions?.length || 0} questions</p>
       </div>
@@ -4061,8 +4306,7 @@ function openAddQuizToClassModal(classId) {
   });
   
   html += '</div>';
-  html += `<button style="width: 100%; margin-top: 15px; padding: 10px; background: var(--surface-variant); color: var(--on-surface); border-radius: 6px; cursor: pointer; font-weight: bold;"
-           onclick="document.querySelector('[data-modal-overlay]').remove(); teacherTab='classes'; renderApp()">Close</button>`;
+  html += `<button style="width: 100%; margin-top: 15px; padding: 10px; background: var(--surface-variant); color: var(--on-surface); border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="document.querySelector('[data-modal-overlay]').remove(); teacherTab='classes'; renderApp()">Close</button>`;
   html += '</div>';
   
   const overlay = document.createElement('div');
@@ -4121,7 +4365,7 @@ function assignQuizToClass(classId, quizId) {
           questions = cfData.questions;
           
           // Update the stored quiz with questions
-          const key = `teacher_quizzes_${getUser().id}`;
+          const key = 'teacher_quizzes_' + getUser().id;
           const stored = JSON.parse(localStorage.getItem(key) || '[]');
           const idx = stored.findIndex(q => q.quizId === quizId);
           if (idx >= 0) {
@@ -4175,130 +4419,191 @@ function removeQuizFromClass(classId, quizId) {
 
 function renderStudentView() {
   return `
-    <div class="flex flex-col items-center mt-6 space-y-6 w-full">
-<div class="w-full flex justify-start mb-2">
-  <button
-    onclick="backStudentBtn()"
-    style="color: var(--primary); background-color: var(--card-bg); border-radius: var(--radius);"
-    class="px-4 py-3 font-semibold"
-  >
-    ← Back
-  </button>
-</div>
+    <div class="w-full min-h-screen p-lg" style="background-color: var(--background);">
+      <div class="container max-w-4xl mx-auto">
+        <!-- Header with Back Button -->
+        <div class="flex-between mb-2xl gap-lg">
+          <h1 class="text-3xl font-bold" style="color: var(--text);">My Dashboard</h1>
+          <button onclick="backStudentBtn()" class="btn-secondary">
+            ← Back Home
+          </button>
+        </div>
 
-      <!-- Student Tabs -->
-      <div class="flex gap-2">
-        <button
-          class="px-4 py-2 rounded-lg transition-colors duration-200"
-          style="
-            background-color: ${studentTab === 'main' ? 'var(--primary)' : 'var(--surface)'}; 
-            color: ${studentTab === 'main' ? 'var(--on-primary)' : 'var(--on-surface)'};"
-          onclick="studentTab='main'; renderApp()"
-        >
-          Quiz
-        </button>
+        <!-- Modern Tab Navigation -->
+        <div class="flex gap-md mb-2xl overflow-x-auto pb-md">
+          <button
+            class="px-lg py-md rounded-lg font-medium whitespace-nowrap transition-all"
+            style="background-color: ${studentTab === 'main' ? 'var(--primary)' : 'var(--surface)'}; color: ${studentTab === 'main' ? 'white' : 'var(--text)'}; border: 2px solid ${studentTab === 'main' ? 'var(--primary)' : 'var(--border)'};"
+            onclick="studentTab='main'; renderApp()"
+          >
+            📝 Quizzes
+          </button>
 
-        <button
-          class="px-4 py-2 rounded-lg transition-colors duration-200"
-          style="
-            background-color: ${studentTab === 'classes' ? 'var(--primary)' : 'var(--surface)'}; 
-            color: ${studentTab === 'classes' ? 'var(--on-primary)' : 'var(--on-surface)'};"
-          onclick="studentTab='classes'; renderApp()"
-        >
-          Classes
-        </button>
+          <button
+            class="px-lg py-md rounded-lg font-medium whitespace-nowrap transition-all"
+            style="background-color: ${studentTab === 'classes' ? 'var(--primary)' : 'var(--surface)'}; color: ${studentTab === 'classes' ? 'white' : 'var(--text)'}; border: 2px solid ${studentTab === 'classes' ? 'var(--primary)' : 'var(--border)'};"
+            onclick="studentTab='classes'; renderApp()"
+          >
+            📚 Classes
+          </button>
 
-        <button
-          class="px-4 py-2 rounded-lg transition-colors duration-200"
-          style="
-            background-color: ${studentTab === 'profile' ? 'var(--primary)' : 'var(--surface)'}; 
-            color: ${studentTab === 'profile' ? 'var(--on-primary)' : 'var(--on-surface)'};"
-          onclick="studentTab='profile'; renderApp()"
-        >
-          Profile
-        </button>
+          <button
+            class="px-lg py-md rounded-lg font-medium whitespace-nowrap transition-all"
+            style="background-color: ${studentTab === 'profile' ? 'var(--primary)' : 'var(--surface)'}; color: ${studentTab === 'profile' ? 'white' : 'var(--text)'}; border: 2px solid ${studentTab === 'profile' ? 'var(--primary)' : 'var(--border)'};"
+            onclick="studentTab='profile'; renderApp()"
+          >
+            👤 Profile
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="w-full animate-fadeIn">
+          ${studentTab === 'main'
+            ? renderJoinQuiz()
+            : studentTab === 'classes'
+            ? renderStudentClasses()
+            : renderStudentProfile()}
+        </div>
       </div>
-
-      <!-- Content -->
-      <div class="w-full max-w-xl">
-        ${studentTab === 'main'
-          ? renderJoinQuiz()
-          : studentTab === 'classes'
-          ? renderStudentClasses()
-          : renderStudentProfile()}
-      </div>
-
     </div>
   `;
 }
 
 function renderStudentProfile() {
   const profile = getStudentProfile();
+  const currentUser = getUser();
+  const isGoogleConnected = profile.googleId || (currentUser && currentUser.provider === 'google' && currentUser.googleId);
 
   return `
-    <div class="p-6 rounded-xl shadow space-y-4 mx-auto"
-         style="background-color: var(--card-bg); color: var(--on-surface); box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
-      <h2 class="text-2xl font-bold text-center">Student Profile</h2>
+    <div class="w-full max-w-3xl mx-auto">
+      <!-- Profile Header Card -->
+      ${createCard(`
+        <div class="flex flex-col md:flex-row gap-xl items-start md:items-center">
+          <!-- Profile Picture -->
+          <div class="flex flex-col items-center gap-lg">
+            <div class="relative w-32 h-32 rounded-full overflow-hidden border-4" style="border-color: var(--primary); background: var(--surface);">
+              ${profile.profilePictureUrl ? `
+                <img src="${profile.profilePictureUrl}" alt="Profile" class="w-full h-full object-cover">
+              ` : `
+                <div class="w-full h-full flex items-center justify-center text-5xl">
+                  👤
+                </div>
+              `}
+            </div>
+            <div class="flex gap-md">
+              <label class="btn-primary text-sm cursor-pointer">
+                📤 Upload
+                <input type="file" id="profile-picture-input" accept="image/*" style="display: none;" onchange="handleProfilePictureUpload(this.files[0])">
+              </label>
+              ${profile.profilePictureUrl ? `
+                <button class="btn-danger text-sm" onclick="removeProfilePicture()">🗑 Remove</button>
+              ` : ''}
+            </div>
+          </div>
 
-      <div>
-        <label for="profile-name" class="block text-sm font-semibold mb-1">Name</label>
-        <input id="profile-name"
-               class="w-full p-3 border rounded"
-               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-               placeholder="Enter your full name"
-               value="${profile.name || ''}">
-      </div>
+          <!-- Profile Info -->
+          <div class="flex-1 w-full">
+            <h2 class="text-3xl font-bold mb-lg" style="color: var(--text);">${profile.name || 'Add Your Name'}</h2>
+            
+            <!-- Google Status -->
+            <div class="p-lg rounded-lg mb-lg" style="background-color: ${isGoogleConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)'}; border: 1px solid ${isGoogleConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'};">
+              <div class="flex-between gap-md">
+                <div>
+                  <div class="font-semibold flex items-center gap-sm">
+                    ${isGoogleConnected ? '✅' : '🔗'} Google Account
+                  </div>
+                  <div class="text-sm mt-sm" style="color: var(--text-muted);">
+                    ${isGoogleConnected ? `Connected: ${profile.googleEmail || currentUser.email || 'N/A'}` : 'Link your Google account for cloud sync'}
+                  </div>
+                </div>
+                <button class="btn-${isGoogleConnected ? 'danger' : 'primary'} text-sm" onclick="${isGoogleConnected ? 'disconnectGoogle()' : 'connectGoogle()'}">
+                  ${isGoogleConnected ? 'Disconnect' : 'Connect'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `, { className: 'mb-xl' })}
 
-      <div>
-        <label for="profile-student-id" class="block text-sm font-semibold mb-1">Student ID</label>
-        <input id="profile-student-id"
-               class="w-full p-3 border rounded"
-               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-               placeholder="Enter your student ID"
-               value="${profile.id || ''}">
-      </div>
+      <!-- Profile Form Card -->
+      ${createCard(`
+        <div class="space-y-lg">
+          <!-- Basic Info Row -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+            <div class="form-group">
+              <label for="profile-name" class="block font-semibold mb-sm">📝 Full Name</label>
+              <input id="profile-name"
+                     class="w-full p-md border-2 rounded-lg transition-colors"
+                     style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                     placeholder="Enter your full name"
+                     value="${profile.name || ''}">
+            </div>
 
-      <div>
-        <label for="profile-email" class="block text-sm font-semibold mb-1">Email</label>
-        <input id="profile-email"
-               type="email"
-               class="w-full p-3 border rounded"
-               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-               placeholder="your.email@school.edu"
-               value="${profile.email || ''}">
-      </div>
+            <div class="form-group">
+              <label for="profile-email" class="block font-semibold mb-sm">✉️ Gmail</label>
+              <input id="profile-email"
+                     type="email"
+                     class="w-full p-md border-2 rounded-lg transition-colors"
+                     style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                     placeholder="your.email@gmail.com"
+                     value="${profile.email || profile.googleEmail || ''}">
+            </div>
+          </div>
 
-      <div>
-        <label for="profile-school" class="block text-sm font-semibold mb-1">School</label>
-        <input id="profile-school"
-               class="w-full p-3 border rounded"
-               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-               placeholder="Enter your school name"
-               value="${profile.school || ''}">
-      </div>
+          <!-- Student ID & School Row -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+            <div class="form-group">
+              <label for="profile-student-id" class="block font-semibold mb-sm">🆔 Student ID</label>
+              <input id="profile-student-id"
+                     class="w-full p-md border-2 rounded-lg transition-colors"
+                     style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                     placeholder="Enter your student ID"
+                     value="${profile.id || ''}">
+            </div>
 
-      <div>
-        <label for="profile-grade" class="block text-sm font-semibold mb-1">Grade</label>
-        <input id="profile-grade"
-               class="w-full p-3 border rounded"
-               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-               placeholder="e.g., 10th Grade"
-               value="${profile.grade || ''}"
-      </div>
+            <div class="form-group">
+              <label for="profile-school" class="block font-semibold mb-sm">🏫 School</label>
+              <input id="profile-school"
+                     class="w-full p-md border-2 rounded-lg transition-colors"
+                     style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                     placeholder="Enter your school name"
+                     value="${profile.school || ''}">
+            </div>
+          </div>
 
-      <div class="flex justify-center gap-4 pt-2">
-        <button class="px-6 py-3 rounded transition-colors duration-200 font-semibold"
-                style="background-color: var(--primary); color: var(--on-primary, var(--text));"
-                onclick="saveEnhancedProfile()">
-          💾 Save Profile
-        </button>
-
-        <button class="px-6 py-3 rounded transition-colors duration-200 font-semibold"
-                style="background-color: var(--error); color: var(--on-error);"
-                onclick="clearStudentInfo()">
-          🗑 Reset
-        </button>
-      </div>
+          <!-- Year Level -->
+          <div class="form-group">
+            <label for="profile-year-level" class="block font-semibold mb-sm">📊 Year Level</label>
+            <select id="profile-year-level"
+                    class="w-full p-md border-2 rounded-lg transition-colors"
+                    style="border-color: var(--border); background: var(--card-bg); color: var(--text);">
+              <option value="">Select Year Level</option>
+              <optgroup label="High School">
+                <option value="Grade 7" ${profile.yearLevel === 'Grade 7' ? 'selected' : ''}>Grade 7</option>
+                <option value="Grade 8" ${profile.yearLevel === 'Grade 8' ? 'selected' : ''}>Grade 8</option>
+                <option value="Grade 9" ${profile.yearLevel === 'Grade 9' ? 'selected' : ''}>Grade 9</option>
+                <option value="Grade 10" ${profile.yearLevel === 'Grade 10' ? 'selected' : ''}>Grade 10</option>
+                <option value="Grade 11" ${profile.yearLevel === 'Grade 11' ? 'selected' : ''}>Grade 11</option>
+                <option value="Grade 12" ${profile.yearLevel === 'Grade 12' ? 'selected' : ''}>Grade 12</option>
+              </optgroup>
+              <optgroup label="College">
+                <option value="1st Year" ${profile.yearLevel === '1st Year' ? 'selected' : ''}>1st Year</option>
+                <option value="2nd Year" ${profile.yearLevel === '2nd Year' ? 'selected' : ''}>2nd Year</option>
+                <option value="3rd Year" ${profile.yearLevel === '3rd Year' ? 'selected' : ''}>3rd Year</option>
+                <option value="4th Year" ${profile.yearLevel === '4th Year' ? 'selected' : ''}>4th Year</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+      `, { 
+        className: 'mb-xl',
+        footer: `
+          <div class="flex gap-lg justify-end">
+            <button class="btn-secondary" onclick="studentTab='main'; renderApp()">Cancel</button>
+            <button class="btn-primary" onclick="saveEnhancedProfile()">💾 Save Changes</button>
+          </div>
+        `
+      })}
     </div>
   `;
 }
@@ -4310,79 +4615,57 @@ function renderJoinQuiz() {
   const student = window.currentStudent || { name: "", id: "" };
 
   return `
-    <div class="w-full min-h-screen flex items-center justify-center p-4"
-         style="background-color: var(--background); font-family: var(--font-family); font-size: var(--font-size); line-height: var(--line-height);">
-      <div class="w-full max-w-md p-6 fade-in space-y-6"
-           style="background-color: var(--card-bg); border-radius: var(--radius);">
-
-        <!-- Logged in info -->
-        ${student.name && student.id ? `
-        <div style="color: var(--primary); font-size: 0.875rem;">
-          ✅ Logged in as: ${student.name} (${student.id})
-        </div>` : ""}
-
-        <!-- Student Info Modal -->
-        <div id="student-info-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden p-4">
-          <div style="background-color: var(--card-bg); border-radius: var(--radius);" class="p-6 w-full max-w-sm mx-2">
-            <h3 style="color: var(--text);" class="text-lg font-semibold mb-4">👤 Student Information</h3>
-            <input
-              id="student-name-input"
-              placeholder="Full Name"
-              style="background-color: var(--card-bg); color: var(--text); border-radius: var(--radius); border: 1px solid var(--primary);"
-              class="w-full mb-3 px-4 py-3 text-base"
-            />
-            <input
-              id="student-id-input"
-              placeholder="Student ID"
-              style="background-color: var(--card-bg); color: var(--text); border-radius: var(--radius); border: 1px solid var(--primary);"
-              class="w-full mb-4 px-4 py-3 text-base"
-            />
-            <div class="flex justify-end gap-3">
-              <button onclick="closeStudentInfoModal()"
-                      style="background-color: var(--card-bg); color: var(--text); border-radius: var(--radius); border: 1px solid var(--primary);"
-                      class="px-6 py-3 quiz-option min-h-[48px]">
-                Cancel
-              </button>
-              <button onclick="confirmStudentInfo()"
-                      style="background-color: var(--primary); color: var(--on-primary, var(--text)); border-radius: var(--radius);"
-                      class="px-6 py-3 quiz-option min-h-[48px]">
-                Continue
-              </button>
+    <div class="w-full max-w-2xl mx-auto">
+      <!-- Welcome Card -->
+      ${student.name && student.id ? `
+        ${createCard(`
+          <div class="flex items-center gap-lg">
+            <div class="text-3xl">✅</div>
+            <div>
+              <div class="text-sm" style="color: var(--text-muted);">Logged in as</div>
+              <div class="text-xl font-semibold">${student.name}</div>
+              <div class="text-sm" style="color: var(--text-muted);">ID: ${student.id}</div>
             </div>
           </div>
+        `, { className: 'mb-xl' })}
+      ` : ''}
+
+      <!-- Join Quiz Card -->
+      ${createCard(`
+        <div class="text-center mb-lg">
+          <div class="text-5xl mb-lg">🧠</div>
+          <h2 class="text-2xl font-bold">Take a Quiz</h2>
+          <p class="text-muted mt-sm">Enter the quiz code to get started</p>
         </div>
 
-        <!-- Quiz Join Section -->
-        <h2 style="color: var(--text);" class="text-2xl font-semibold">🧠 Join Quiz</h2>
-        <p style="color: var(--secondary-text);" class="text-sm mb-4">
-          Enter the quiz ID provided
-        </p>
+        <div class="space-y-lg">
+          <div class="form-group">
+            <label for="student-quiz-id" class="block font-semibold mb-sm">📋 Quiz Code</label>
+            <input
+              id="student-quiz-id"
+              placeholder="Enter quiz code"
+              class="w-full p-lg border-2 rounded-lg transition-colors"
+              style="border-color: var(--border); background: var(--card-bg); color: var(--text); font-size: 16px;"
+            />
+          </div>
 
-        <input
-          id="student-quiz-id"
-          placeholder="Quiz ID"
-          style="background-color: var(--card-bg); color: var(--text); border-radius: var(--radius); border: 1px solid var(--primary);"
-          class="w-full mb-4 px-4 py-4 text-base"
-        />
+          <button
+            onclick="loadStudentQuiz()"
+            class="btn-primary w-full py-lg text-lg font-semibold"
+          >
+            🚀 Start Quiz
+          </button>
 
-        <button
-          onclick="loadStudentQuiz()"
-          style="background-color: var(--primary); color: var(--on-primary, var(--text)); border-radius: var(--radius);"
-          class="w-full py-4 mb-3 font-semibold quiz-option min-h-[56px] text-lg"
-        >
-          Start Quiz
-        </button>
+          <button 
+            onclick="currentView='student-score-history'; renderApp();"
+            class="btn-secondary w-full py-lg text-lg font-semibold"
+          >
+            📊 View Score History
+          </button>
+        </div>
 
-        <button 
-          onclick="currentView='student-score-history'; renderApp();"
-          style="background-color: var(--primary); color: var(--on-primary, var(--text)); border-radius: var(--radius);"
-          class="w-full py-4 mb-3 font-semibold quiz-option min-h-[56px] text-lg"
-        >
-          📊 View Score History
-        </button>
-
-        <div id="student-error" style="color: red;" class="mt-4 text-center"></div>
-      </div>
+        <div id="student-error" class="mt-lg p-md rounded-lg hidden" style="background: rgba(239, 68, 68, 0.1); color: var(--error);"></div>
+      `, { className: 'mb-xl', elevated: true })}
     </div>
   `;
 }
@@ -4550,10 +4833,38 @@ function renderTeacherView() {
 
 function renderTeacherProfile() {
   const t = getTeacherProfile();
+  const currentUser = getUser();
+  const isGoogleConnected = t.googleId || (currentUser && currentUser.provider === 'google' && currentUser.googleId);
 
   return `
     <div class="p-6 rounded-xl shadow space-y-4" style="background-color: var(--card-bg); color: var(--on-surface); box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
       <h2 class="text-2xl font-bold text-center">Teacher Profile</h2>
+
+      <!-- Google Account Connection Status -->
+      <div class="p-4 rounded-lg" style="background-color: ${isGoogleConnected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(251, 146, 60, 0.1)'}; border: 1px solid ${isGoogleConnected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(251, 146, 60, 0.3)'}; margin-bottom: 20px;">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-semibold flex items-center gap-2">
+              ${isGoogleConnected ? '✅' : '🔗'} Google Account
+            </div>
+            ${isGoogleConnected ? `
+              <div class="text-sm mt-1" style="opacity: 0.8;">
+                Connected: ${t.googleEmail || currentUser.email || 'N/A'}
+              </div>
+            ` : `
+              <div class="text-sm mt-1" style="opacity: 0.8;">
+                Link your Google account for cloud sync
+              </div>
+            `}
+          </div>
+          <button 
+            class="px-4 py-2 rounded-lg font-semibold text-sm transition-all"
+            style="background: ${isGoogleConnected ? 'rgba(239, 68, 68, 0.15)' : 'linear-gradient(135deg, #4285F4 0%, #1E88E5 100%)'}; color: ${isGoogleConnected ? '#dc2626' : 'white'};"
+            onclick="${isGoogleConnected ? 'disconnectGoogle()' : 'connectGoogle()'}">
+            ${isGoogleConnected ? 'Disconnect' : 'Connect'}
+          </button>
+        </div>
+      </div>
 
       <div>
         <label for="teacher-name" class="block text-sm font-semibold mb-1">Name</label>
@@ -4565,31 +4876,13 @@ function renderTeacherProfile() {
       </div>
 
       <div>
-        <label for="teacher-email" class="block text-sm font-semibold mb-1">Email</label>
+        <label for="teacher-email" class="block text-sm font-semibold mb-1">Gmail</label>
         <input id="teacher-email"
           type="email"
           class="w-full p-3 border rounded"
           style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-          placeholder="your.email@school.edu"
-          value="${t.email || ""}">
-      </div>
-
-      <div>
-        <label for="teacher-subject" class="block text-sm font-semibold mb-1">Subject</label>
-        <input id="teacher-subject"
-          class="w-full p-3 border rounded"
-          style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-          placeholder="e.g., Mathematics, Science"
-          value="${t.subject || ""}">
-      </div>
-
-      <div>
-        <label for="teacher-school" class="block text-sm font-semibold mb-1">School</label>
-        <input id="teacher-school"
-          class="w-full p-3 border rounded"
-          style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-          placeholder="Your school name"
-          value="${t.school || ""}"
+          placeholder="your.email@gmail.com"
+          value="${t.email || t.googleEmail || ""}">
       </div>
 
       <button class="mt-4 w-full px-6 py-3 rounded font-semibold" 
@@ -4597,9 +4890,7 @@ function renderTeacherProfile() {
         onclick="
           saveTeacherProfile({
             name: document.getElementById('teacher-name').value.trim(),
-            email: document.getElementById('teacher-email').value.trim(),
-            subject: document.getElementById('teacher-subject').value.trim(),
-            school: document.getElementById('teacher-school').value.trim()
+            email: document.getElementById('teacher-email').value.trim()
           })
         ">
         💾 Save Profile
@@ -4610,7 +4901,23 @@ function renderTeacherProfile() {
 
 
 function getTeacherProfile() {
-  return JSON.parse(localStorage.getItem("teacherProfile") || "{}");
+  const user = getUser();
+  const profile = JSON.parse(localStorage.getItem("teacherProfile") || "{}");
+  
+  // If user is logged in with Google, use Google data as primary source
+  if (user && user.provider === 'google') {
+    return {
+      ...profile,
+      name: user.name || profile.name || "",
+      email: user.email || profile.email || "",
+      googleId: user.googleId || profile.googleId,
+      googleEmail: user.googleEmail || user.email || profile.googleEmail,
+      profilePictureUrl: user.picture || profile.profilePictureUrl,
+      id: profile.id || user.id
+    };
+  }
+  
+  return profile;
 }
 
 function saveTeacherProfile(profile) {
@@ -5897,15 +6204,21 @@ function saveTeacherQuiz(quiz) {
   const key = `teacher_quizzes_${user.id}`;
   const quizzes = JSON.parse(localStorage.getItem(key) || "[]");
 
-  quizzes.unshift({
-    quizId: quiz.quizId || quiz.id, // Support both fields
-    id: quiz.id || quiz.quizId,     // Store both for compatibility
+  const quizData = {
+    quizId: quiz.quizId || quiz.id,
+    id: quiz.id || quiz.quizId,
     title: quiz.title,
-    questions: quiz.questions || [], // INCLUDE QUESTIONS!
-    createdAt: Date.now()
-  });
+    questions: quiz.questions || [],
+    createdAt: quiz.createdAt || Date.now()
+  };
 
+  quizzes.unshift(quizData);
   localStorage.setItem(key, JSON.stringify(quizzes));
+  
+  // Sync to backend if authenticated with Google
+  if (user.authenticated && user.provider === 'google') {
+    syncQuizToBackend(quizData);
+  }
 }
 
 
@@ -5916,8 +6229,33 @@ async function getTeacherQuizzes() {
 
   const key = `teacher_quizzes_${user.id}`;
   
-  // Load from backend if logged in
-  await loadTeacherQuizzesFromBackend();
+  // Load from backend if authenticated
+  if (user.authenticated && user.provider === 'google') {
+    const backendQuizzes = await loadQuizzesFromBackend();
+    if (backendQuizzes.length > 0) {
+      // Merge backend quizzes with local ones
+      const localQuizzes = JSON.parse(localStorage.getItem(key) || "[]");
+      const quizMap = new Map();
+      
+      // Add backend quizzes first
+      backendQuizzes.forEach(q => {
+        const id = q.id || q.quizId;
+        if (id) quizMap.set(id, q);
+      });
+      
+      // Add local quizzes that don't exist in backend
+      localQuizzes.forEach(q => {
+        const id = q.id || q.quizId;
+        if (id && !quizMap.has(id)) {
+          quizMap.set(id, q);
+        }
+      });
+      
+      const mergedQuizzes = Array.from(quizMap.values());
+      localStorage.setItem(key, JSON.stringify(mergedQuizzes));
+      return mergedQuizzes;
+    }
+  }
   
   // Get quizzes from localStorage
   let quizzes = JSON.parse(localStorage.getItem(key) || "[]");

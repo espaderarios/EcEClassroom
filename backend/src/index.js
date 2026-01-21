@@ -202,19 +202,38 @@ export default {
           return jsonResponse({ error: 'Failed to fetch user profile' }, 400);
         }
 
-        // Build app user
+        // Build app user with Google account info
+        const googleId = userInfo.sub;
+        const appUserId = `google_${googleId}`;
+        
         const appUser = {
-          id: `google_${userInfo.sub}`,
+          id: appUserId,
           provider: 'google',
+          googleId: googleId,
+          googleEmail: userInfo.email,
           email: userInfo.email,
           name: userInfo.name || userInfo.email || 'Google User',
           picture: userInfo.picture,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString()
         };
 
-        // Persist user minimally (store in STUDENTS KV)
+        // Persist user (store in STUDENTS KV)
         if (env.STUDENTS) {
-          await kvPut(env.STUDENTS, appUser.id, appUser);
+          // Check if user already exists
+          const existingUser = await kvGet(env.STUDENTS, appUserId);
+          if (existingUser) {
+            // Update existing user
+            appUser.createdAt = existingUser.createdAt;
+            // Preserve any linked local user ID
+            if (existingUser.linkedUserId) {
+              appUser.linkedUserId = existingUser.linkedUserId;
+            }
+          }
+          await kvPut(env.STUDENTS, appUserId, appUser);
+          
+          // Also store reverse mapping: googleId -> userId for quick lookups
+          await kvPut(env.STUDENTS, `google_map_${googleId}`, { userId: appUserId, googleId, email: userInfo.email });
         }
 
         // Issue a lightweight session cookie with user id (for demo; replace with real session/JWT in production)
@@ -230,8 +249,64 @@ export default {
         redirectUrl.searchParams.set('user_id', appUser.id);
         redirectUrl.searchParams.set('user_name', appUser.name);
         redirectUrl.searchParams.set('user_email', appUser.email);
+        redirectUrl.searchParams.set('google_id', googleId);
+        redirectUrl.searchParams.set('picture', appUser.picture || '');
         
         return redirectResponse(redirectUrl.toString(), { cookies: [sessionCookie, authFlagCookie, buildCookie('oauth_state', '', { maxAge: 0 })] });
+      }
+
+      // --- Link existing user to Google account ---
+      if (pathname === '/auth/link-google' && request.method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const { localUserId, googleUserId } = body;
+        
+        if (!localUserId || !googleUserId) {
+          return jsonResponse({ error: 'Both localUserId and googleUserId are required' }, 400);
+        }
+        
+        if (!env.STUDENTS) {
+          return jsonResponse({ error: 'Storage not available' }, 500);
+        }
+        
+        // Get both users
+        const localUser = await kvGet(env.STUDENTS, localUserId);
+        const googleUser = await kvGet(env.STUDENTS, googleUserId);
+        
+        if (!googleUser) {
+          return jsonResponse({ error: 'Google user not found' }, 404);
+        }
+        
+        // Link them
+        if (localUser) {
+          // Update local user with Google info
+          localUser.googleId = googleUser.googleId;
+          localUser.googleEmail = googleUser.googleEmail;
+          localUser.linkedGoogleUserId = googleUserId;
+          await kvPut(env.STUDENTS, localUserId, localUser);
+        }
+        
+        // Update Google user with link to local user
+        googleUser.linkedUserId = localUserId;
+        await kvPut(env.STUDENTS, googleUserId, googleUser);
+        
+        return jsonResponse({ success: true, user: googleUser, linkedUser: localUser });
+      }
+
+      // --- Get user by Google ID ---
+      if (pathname.startsWith('/auth/user-by-google/') && request.method === 'GET') {
+        const googleId = pathname.split('/').pop();
+        
+        if (!googleId || !env.STUDENTS) {
+          return jsonResponse({ error: 'Invalid request' }, 400);
+        }
+        
+        const mapping = await kvGet(env.STUDENTS, `google_map_${googleId}`);
+        if (!mapping) {
+          return jsonResponse({ error: 'User not found' }, 404);
+        }
+        
+        const user = await kvGet(env.STUDENTS, mapping.userId);
+        return jsonResponse({ user });
       }
 
         // AI-powered card generation (uses OpenAI key from environment)

@@ -1,0 +1,5 @@
+{
+    "chat.edits2.enabled": true,
+    "editor.inlineSuggest.edits.showCollapsed": true,
+    "editor.linkedEditing": true
+}

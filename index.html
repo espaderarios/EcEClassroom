@@ -3,13 +3,32 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flashcard Study App</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2563eb">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="mobile-web-app-capable" content="yes">
-<link rel="stylesheet" href="styles.css">
+  <meta name="description" content="EcEClassroom - Modern learning management platform for students and teachers">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="color-scheme" content="light dark">
+  
+  <!-- Apple/iOS Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="EcEClassroom">
+  <meta name="mobile-web-app-capable" content="yes">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🎓</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><text y='135' font-size='135'>🎓</text></svg>">
+  
+  <!-- Google Fonts - Inter (modern, clean) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="styles.css">
+  
+  <title>EcEClassroom - Learning Management Platform</title>
 <script>
 (function () {
   var config = {};
@@ -81,15 +100,73 @@ if (!getUser()) {
     const userId = urlParams.get('user_id');
     const userName = urlParams.get('user_name');
     const userEmail = urlParams.get('user_email');
+    const googleId = urlParams.get('google_id');
+    const picture = urlParams.get('picture');
     
     if (userId) {
-      setUser({
+      // Check if we're linking to an existing local account
+      const pendingLinkUserId = localStorage.getItem('pending_google_link_user');
+      
+      const googleUser = {
         id: userId,
         name: userName || userEmail,
         email: userEmail,
+        googleId: googleId,
+        googleEmail: userEmail,
+        picture: picture || null,
         provider: 'google',
         authenticated: true
-      });
+      };
+      
+      if (pendingLinkUserId) {
+        // Link this Google account to existing local user
+        googleUser.linkedUserId = pendingLinkUserId;
+        
+        // Call backend to link accounts
+        fetch('https://ec-eclassroom-backend.espaderarios.workers.dev/auth/link-google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ localUserId: pendingLinkUserId, googleUserId: userId })
+        }).catch(err => console.log('Link sync failed:', err));
+        
+        localStorage.removeItem('pending_google_link_user');
+      }
+      
+      setUser(googleUser);
+      
+      // Auto-populate student profile from Google account
+      const studentProfile = JSON.parse(localStorage.getItem('student_profile') || '{}');
+      const updatedStudentProfile = {
+        ...studentProfile,
+        name: userName || studentProfile.name || '',
+        email: userEmail || studentProfile.email || '',
+        googleId: googleId,
+        googleEmail: userEmail,
+        profilePictureUrl: picture || studentProfile.profilePictureUrl,
+        id: pendingLinkUserId || studentProfile.id || userId
+      };
+      localStorage.setItem('student_profile', JSON.stringify(updatedStudentProfile));
+      
+      // Auto-populate teacher profile from Google account
+      const teacherProfile = JSON.parse(localStorage.getItem('teacherProfile') || '{}');
+      const updatedTeacherProfile = {
+        ...teacherProfile,
+        name: userName || teacherProfile.name || '',
+        email: userEmail || teacherProfile.email || '',
+        googleId: googleId,
+        googleEmail: userEmail,
+        profilePictureUrl: picture || teacherProfile.profilePictureUrl,
+        id: pendingLinkUserId || teacherProfile.id || userId
+      };
+      localStorage.setItem('teacherProfile', JSON.stringify(updatedTeacherProfile));
+      
+      // Update currentStudent for backward compatibility
+      window.currentStudent = {
+        name: userName,
+        id: updatedStudentProfile.id,
+        email: userEmail
+      };
+      localStorage.setItem('currentStudent', JSON.stringify(window.currentStudent));
       
       // Clean up URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -246,57 +323,15 @@ window.addEventListener('appinstalled', () => {
   deferredPrompt = null;
 });
 
-// Network status indicator
-function updateNetworkStatus() {
-  // Ensure DOM is ready
-  if (!document.body) {
-    setTimeout(updateNetworkStatus, 100);
-    return;
-  }
-
-  const statusIndicator = document.getElementById('network-status');
-  if (!statusIndicator) {
-    const indicator = document.createElement('div');
-    indicator.id = 'network-status';
-    indicator.className = 'network-status';
-    document.body.appendChild(indicator);
-  }
-
-  const statusEl = document.getElementById('network-status');
-  
-  // Always show online since service worker has cached everything
-  statusEl.innerHTML = '🟢 Cached Offline Mode';
-  statusEl.className = 'network-status online';
-}
-
-// Remove network status listeners - rely on service worker caching instead
-
-// Wait for DOM to be ready before calling updateNetworkStatus
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', updateNetworkStatus);
-} else {
-  updateNetworkStatus();
-}
-</script>
-
-<!-- Offline Fallback -->
-<div id="offline-message" class="offline-message" style="display: none;">
-  <div class="offline-content">
-    <h2>🔌 You're Offline</h2>
-    <p>You can continue studying with your downloaded content. Some features may be limited.</p>
-    <button onclick="document.getElementById('offline-message').style.display='none'" class="btn-primary">
-      Continue Studying
-    </button>
-  </div>
-</div>
-
-<script>
+// Offline/Online event handlers
 window.addEventListener('offline', () => {
-  document.getElementById('offline-message').style.display = 'flex';
+  const offlineMsg = document.getElementById('offline-message');
+  if (offlineMsg) offlineMsg.style.display = 'flex';
 });
 
 window.addEventListener('online', () => {
-  document.getElementById('offline-message').style.display = 'none';
+  const offlineMsg = document.getElementById('offline-message');
+  if (offlineMsg) offlineMsg.style.display = 'none';
 });
 
 // Cache status indicator
@@ -332,36 +367,124 @@ if ('serviceWorker' in navigator) {
 
   <style>@view-transition { navigation: auto; }</style>
  </head>
- <body class="h-full">
-  <div id="app" class="h-full w-full"></div>
+ <body class="h-full" id="app-body">
+  <!-- Modern Navigation Header -->
+  <header class="fixed top-0 left-0 right-0 bg-card border-b border-border shadow-sm z-fixed" style="background-color: var(--card-bg); border-color: var(--border);">
+    <div class="container flex-between p-lg" style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="flex gap-md" style="display: flex; gap: var(--spacing-md); align-items: center;">
+        <h1 class="m-0" style="margin: 0; font-size: var(--font-size-2xl); color: var(--primary);">
+          🎓 EcEClassroom
+        </h1>
+      </div>
+      
+      <div class="flex gap-md" style="display: flex; gap: var(--spacing-md); align-items: center;">
+        <!-- Dark Mode Toggle -->
+        <button class="btn-icon" id="theme-toggle" title="Toggle dark mode" style="background: transparent; color: var(--text);">
+          🌙
+        </button>
+        
+        <!-- Settings Button -->
+        <button id="openSettingsBtn" class="btn-icon" style="background: transparent; color: var(--text);">
+          ⚙️
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="w-full" style="padding-top: 80px; min-height: 100vh; background-color: var(--background);">
+    <div id="app" class="h-full w-full"></div>
+  </main>
+
+  <!-- Toast Container -->
   <div id="toast-container" class="toast-container"></div>
-    <div id="aiLoading" class="loading-overlay">
-  <div class="loading"></div>
-</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
-<script src="app.js"></script>
 
-<button id="openSettingsBtn" class="settings-fab">
-  <img src="icons/settings.svg" class="icon md" alt="settings" />
-</button>
+  <!-- Loading Overlay -->
+  <div id="aiLoading" class="loading-overlay">
+    <div class="loading"></div>
+  </div>
 
-<script>
-// Initialize backend sync when app loads
-if (typeof initBackendSync === 'function') {
-  initBackendSync().then(() => {
-    console.log('App data synced with backend');
-  }).catch(err => {
-    console.log('Backend sync skipped:', err);
-  });
-}
-</script>
+  <!-- Offline Message -->
+  <div id="offline-message" class="offline-message" style="display: none;">
+    <div class="offline-content" style="background: var(--card-bg); border-radius: var(--radius-lg); padding: var(--spacing-xl);">
+      <h2>🔌 You're Offline</h2>
+      <p style="color: var(--text-muted);">You can continue studying with your downloaded content. Some features may be limited.</p>
+      <button class="btn-primary" onclick="document.getElementById('offline-message').style.display='none'">
+        Continue Studying
+      </button>
+    </div>
+  </div>
 
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./service-worker.js');
-}
-</script>
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+  <script src="tailwindcss.js"></script>
+  <script src="app.js"></script>
+
+  <!-- Dark Mode Script -->
+  <script>
+    // Initialize dark mode preference
+    function initDarkMode() {
+      const darkModeToggle = document.getElementById('theme-toggle');
+      const appBody = document.getElementById('app-body');
+      
+      // Check for saved preference
+      const savedMode = localStorage.getItem('theme-mode');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isDark = savedMode ? savedMode === 'dark' : prefersDark;
+      
+      // Apply theme
+      if (isDark) {
+        appBody.classList.add('dark-mode');
+        darkModeToggle.textContent = '☀️';
+      } else {
+        appBody.classList.add('light-mode');
+        darkModeToggle.textContent = '🌙';
+      }
+      
+      // Toggle handler
+      darkModeToggle.addEventListener('click', () => {
+        const isDarkMode = appBody.classList.contains('dark-mode');
+        if (isDarkMode) {
+          appBody.classList.remove('dark-mode');
+          appBody.classList.add('light-mode');
+          localStorage.setItem('theme-mode', 'light');
+          darkModeToggle.textContent = '🌙';
+        } else {
+          appBody.classList.remove('light-mode');
+          appBody.classList.add('dark-mode');
+          localStorage.setItem('theme-mode', 'dark');
+          darkModeToggle.textContent = '☀️';
+        }
+      });
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initDarkMode);
+    } else {
+      initDarkMode();
+    }
+  </script>
+
+  <!-- Backend Sync Script -->
+  <script>
+    // Initialize backend sync when app loads
+    if (typeof initBackendSync === 'function') {
+      initBackendSync().then(() => {
+        console.log('App data synced with backend');
+      }).catch(err => {
+        console.log('Backend sync skipped:', err);
+      });
+    }
+  </script>
+
+  <!-- Service Worker Script -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js');
+    }
+  </script>
 
  </body>
  </html>

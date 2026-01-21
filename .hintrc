@@ -12,6 +12,15 @@
         ]
       }
     ],
-    "no-inline-styles": "off"
+    "no-inline-styles": "off",
+    "compat-api/css": [
+      "default",
+      {
+        "ignore": [
+          "image-rendering: crisp-edges",
+          "color: color-mix(in srgb, var(--text), transparent 45%)"
+        ]
+      }
+    ]
   }
 }
