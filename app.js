@@ -55,6 +55,8 @@ function clearTeacherDraft() {
 
 function saveStudentProfile(profileData) {
   localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(profileData));
+  // Sync to backend asynchronously
+  syncStudentProfileToBackend(profileData);
 }
 
 function getStudentProfile() {
@@ -82,6 +84,8 @@ function saveClass(classData) {
   }
   
   localStorage.setItem(TEACHER_CLASSES_KEY, JSON.stringify(classes));
+  // Sync to backend asynchronously
+  syncClassToBackend(classData);
 }
 
 function getTeacherClasses(teacherId) {
@@ -130,6 +134,8 @@ function enrollStudentInClass(classCode) {
   
   enrolledClasses.push(enrollment);
   localStorage.setItem(STUDENT_CLASSES_KEY, JSON.stringify(enrolledClasses));
+  // Sync to backend asynchronously
+  syncEnrollmentToBackend(enrollment);
   
   return { success: true };
 }
@@ -227,13 +233,201 @@ const AI_API_URL =
 
 // Get backend URL - use from localStorage or default
 function getBackendUrl() {
-  return localStorage.getItem('backendUrl') || 'http://localhost:5000';
+  const stored = localStorage.getItem('backendUrl');
+  // Skip localhost URLs from old dev sessions
+  if (stored && !stored.includes('localhost') && !stored.includes('127.0.0.1')) {
+    return stored;
+  }
+  return 'https://ec-eclassroom-backend.espaderarios.workers.dev';
 }
 
 // Set backend URL (can be called to configure)
 function setBackendUrl(url) {
   localStorage.setItem('backendUrl', url.replace(/\/$/, '')); // Remove trailing slash
   toast(`✅ Backend URL set to: ${url}`);
+}
+
+// ============= BACKEND SYNC FUNCTIONS =============
+
+async function syncClassToBackend(classData) {
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/classes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(classData)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+  } catch (error) {
+    console.log('Backend sync failed, using local storage only:', error);
+  }
+  return null;
+}
+
+async function syncStudentProfileToBackend(profile) {
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/students`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+  } catch (error) {
+    console.log('Backend sync failed, using local storage only:', error);
+  }
+  return null;
+}
+
+async function syncTeacherProfileToBackend(profile) {
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/teachers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+  } catch (error) {
+    console.log('Backend sync failed, using local storage only:', error);
+  }
+  return null;
+}
+
+async function syncEnrollmentToBackend(enrollment) {
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/enrollments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(enrollment)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+  } catch (error) {
+    console.log('Backend sync failed, using local storage only:', error);
+  }
+  return null;
+}
+
+// ============= LOAD FROM BACKEND ON STARTUP =============
+
+async function loadClassesFromBackend() {
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/classes`);
+    if (response.ok) {
+      const classes = await response.json();
+      if (Array.isArray(classes) && classes.length > 0) {
+        // Merge with local data (backend is source of truth)
+        const localClasses = JSON.parse(localStorage.getItem(TEACHER_CLASSES_KEY) || "[]");
+        const merged = [...classes];
+        
+        // Add any local-only classes
+        localClasses.forEach(local => {
+          if (!merged.find(c => c.id === local.id)) {
+            merged.push(local);
+            // Sync local-only class to backend
+            syncClassToBackend(local);
+          }
+        });
+        
+        localStorage.setItem(TEACHER_CLASSES_KEY, JSON.stringify(merged));
+        return merged;
+      }
+    }
+  } catch (error) {
+    console.log('Could not load classes from backend:', error);
+  }
+  return JSON.parse(localStorage.getItem(TEACHER_CLASSES_KEY) || "[]");
+}
+
+async function loadStudentProfileFromBackend(studentId) {
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/students/${studentId}`);
+    if (response.ok) {
+      const profile = await response.json();
+      localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(profile));
+      return profile;
+    }
+  } catch (error) {
+    console.log('Could not load student profile from backend:', error);
+  }
+  return getStudentProfile();
+}
+
+async function loadTeacherProfileFromBackend(teacherId) {
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/teachers/${teacherId}`);
+    if (response.ok) {
+      const profile = await response.json();
+      localStorage.setItem("teacherProfile", JSON.stringify(profile));
+      return profile;
+    }
+  } catch (error) {
+    console.log('Could not load teacher profile from backend:', error);
+  }
+  return getTeacherProfile();
+}
+
+async function loadEnrollmentsFromBackend() {
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/enrollments`);
+    if (response.ok) {
+      const enrollments = await response.json();
+      if (Array.isArray(enrollments) && enrollments.length > 0) {
+        const localEnrollments = JSON.parse(localStorage.getItem(STUDENT_CLASSES_KEY) || "[]");
+        const merged = [...enrollments];
+        
+        // Add any local-only enrollments
+        localEnrollments.forEach(local => {
+          if (!merged.find(e => e.classId === local.classId && e.studentId === local.studentId)) {
+            merged.push(local);
+            syncEnrollmentToBackend(local);
+          }
+        });
+        
+        localStorage.setItem(STUDENT_CLASSES_KEY, JSON.stringify(merged));
+        return merged;
+      }
+    }
+  } catch (error) {
+    console.log('Could not load enrollments from backend:', error);
+  }
+  return JSON.parse(localStorage.getItem(STUDENT_CLASSES_KEY) || "[]");
+}
+
+// Initialize backend sync on app load
+async function initBackendSync() {
+  console.log('🔄 Syncing with backend...');
+  
+  // Load all data from backend
+  await Promise.all([
+    loadClassesFromBackend(),
+    loadEnrollmentsFromBackend()
+  ]);
+  
+  // Load user-specific profiles if logged in
+  if (window.currentStudent?.id) {
+    await loadStudentProfileFromBackend(window.currentStudent.id);
+  }
+  
+  const teacherId = window.currentTeacher?.id || localStorage.getItem('currentTeacherId');
+  if (teacherId) {
+    await loadTeacherProfileFromBackend(teacherId);
+  }
+  
+  console.log('✅ Backend sync complete');
 }
 
 // Helper: call the backend GROQ proxy
@@ -3778,6 +3972,16 @@ function renderStudentView() {
         <button
           class="px-4 py-2 rounded-lg transition-colors duration-200"
           style="
+            background-color: ${studentTab === 'classes' ? 'var(--primary)' : 'var(--surface)'}; 
+            color: ${studentTab === 'classes' ? 'var(--on-primary)' : 'var(--on-surface)'};"
+          onclick="studentTab='classes'; renderApp()"
+        >
+          Classes
+        </button>
+
+        <button
+          class="px-4 py-2 rounded-lg transition-colors duration-200"
+          style="
             background-color: ${studentTab === 'profile' ? 'var(--primary)' : 'var(--surface)'}; 
             color: ${studentTab === 'profile' ? 'var(--on-primary)' : 'var(--on-surface)'};"
           onclick="studentTab='profile'; renderApp()"
@@ -3790,6 +3994,8 @@ function renderStudentView() {
       <div class="w-full max-w-xl">
         ${studentTab === 'main'
           ? renderJoinQuiz()
+          : studentTab === 'classes'
+          ? renderStudentClasses()
           : renderStudentProfile()}
       </div>
 
@@ -3798,45 +4004,70 @@ function renderStudentView() {
 }
 
 function renderStudentProfile() {
-  const s = window.currentStudent || {};
+  const profile = getStudentProfile();
 
   return `
     <div class="p-6 rounded-xl shadow space-y-4 mx-auto"
-         style="background-color: var(--surface); color: var(--on-surface);">
+         style="background-color: var(--card-bg); color: var(--on-surface); box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
       <h2 class="text-2xl font-bold text-center">Student Profile</h2>
 
       <div>
-        <label class="block text-sm font-semibold">Name</label>
-        <input id="student-name"
-               class="w-full p-2 border rounded"
+        <label class="block text-sm font-semibold mb-1">Name</label>
+        <input id="profile-name"
+               class="w-full p-3 border rounded"
                style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-               value="${s.name || ''}">
+               placeholder="Enter your full name"
+               value="${profile.name || ''}">
       </div>
 
       <div>
-        <label class="block text-sm font-semibold">Student ID</label>
-        <input id="student-id"
-               class="w-full p-2 border rounded"
+        <label class="block text-sm font-semibold mb-1">Student ID</label>
+        <input id="profile-student-id"
+               class="w-full p-3 border rounded"
                style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
-               value="${s.id || ''}">
+               placeholder="Enter your student ID"
+               value="${profile.id || ''}">
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold mb-1">Email</label>
+        <input id="profile-email"
+               type="email"
+               class="w-full p-3 border rounded"
+               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+               placeholder="your.email@school.edu"
+               value="${profile.email || ''}">
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold mb-1">School</label>
+        <input id="profile-school"
+               class="w-full p-3 border rounded"
+               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+               placeholder="Enter your school name"
+               value="${profile.school || ''}">
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold mb-1">Grade</label>
+        <input id="profile-grade"
+               class="w-full p-3 border rounded"
+               style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+               placeholder="e.g., 10th Grade"
+               value="${profile.grade || ''}">
       </div>
 
       <div class="flex justify-center gap-4 pt-2">
-        <button class="px-4 py-2 rounded transition-colors duration-200"
-                style="background-color: var(--primary); color: var(--on-primary);"
-                onclick="
-                  saveStudentProfile(
-                    document.getElementById('student-name').value.trim(),
-                    document.getElementById('student-id').value.trim()
-                  )
-                ">
-          Save
+        <button class="px-6 py-3 rounded transition-colors duration-200 font-semibold"
+                style="background-color: var(--primary); color: var(--on-primary, var(--text));"
+                onclick="saveEnhancedProfile()">
+          💾 Save Profile
         </button>
 
-        <button class="px-4 py-2 rounded transition-colors duration-200"
+        <button class="px-6 py-3 rounded transition-colors duration-200 font-semibold"
                 style="background-color: var(--error); color: var(--on-error);"
                 onclick="clearStudentInfo()">
-          Reset
+          🗑 Reset
         </button>
       </div>
     </div>
@@ -3884,7 +4115,7 @@ function renderJoinQuiz() {
                 Cancel
               </button>
               <button onclick="confirmStudentInfo()"
-                      style="background-color: var(--primary); color: white; border-radius: var(--radius);"
+                      style="background-color: var(--primary); color: var(--on-primary, var(--text)); border-radius: var(--radius);"
                       class="px-6 py-3 quiz-option min-h-[48px]">
                 Continue
               </button>
@@ -3907,7 +4138,7 @@ function renderJoinQuiz() {
 
         <button
           onclick="loadStudentQuiz()"
-          style="background-color: var(--primary); color: white; border-radius: var(--radius);"
+          style="background-color: var(--primary); color: var(--on-primary, var(--text)); border-radius: var(--radius);"
           class="w-full py-4 mb-3 font-semibold quiz-option min-h-[56px] text-lg"
         >
           Start Quiz
@@ -3915,7 +4146,7 @@ function renderJoinQuiz() {
 
         <button 
           onclick="currentView='student-score-history'; renderApp();"
-          style="background-color: var(--primary); color: white; border-radius: var(--radius);"
+          style="background-color: var(--primary); color: var(--on-primary, var(--text)); border-radius: var(--radius);"
           class="w-full py-4 mb-3 font-semibold quiz-option min-h-[56px] text-lg"
         >
           📊 View Score History
@@ -4056,6 +4287,16 @@ function renderTeacherView() {
         <button
           class="px-4 py-2 rounded-lg transition-colors duration-200"
           style="
+            background-color: ${teacherTab === 'classes' ? 'var(--primary)' : 'var(--surface)'}; 
+            color: ${teacherTab === 'classes' ? 'var(--on-primary)' : 'var(--on-surface)'};"
+          onclick="teacherTab='classes'; renderApp()"
+        >
+          Classes
+        </button>
+
+        <button
+          class="px-4 py-2 rounded-lg transition-colors duration-200"
+          style="
             background-color: ${teacherTab === 'profile' ? 'var(--primary)' : 'var(--surface)'}; 
             color: ${teacherTab === 'profile' ? 'var(--on-primary)' : 'var(--on-surface)'};"
           onclick="teacherTab='profile'; renderApp()"
@@ -4065,9 +4306,11 @@ function renderTeacherView() {
       </div>
 
       <!-- Content -->
-      <div class="mt-4">
+      <div class="mt-4 w-full max-w-4xl">
         ${teacherTab === 'main'
           ? renderTeacherQuizList()
+          : teacherTab === 'classes'
+          ? renderTeacherClasses()
           : renderTeacherProfile()}
       </div>
 
@@ -4080,42 +4323,57 @@ function renderTeacherProfile() {
   const t = getTeacherProfile();
 
   return `
-    <div class="p-4 rounded-xl bg-white shadow space-y-3" style="background-color: var(--surface); color: var(--on-surface);">
-      <h2 class="text-xl font-bold">Teacher Profile</h2>
+    <div class="p-6 rounded-xl shadow space-y-4" style="background-color: var(--card-bg); color: var(--on-surface); box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+      <h2 class="text-2xl font-bold text-center">Teacher Profile</h2>
 
       <div>
-        <label class="block text-sm font-semibold">Name</label>
+        <label class="block text-sm font-semibold mb-1">Name</label>
         <input id="teacher-name"
-          class="w-full p-2 border rounded"
+          class="w-full p-3 border rounded"
           style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+          placeholder="Enter your full name"
           value="${t.name || ""}">
       </div>
 
       <div>
-        <label class="block text-sm font-semibold">Subject</label>
-        <input id="teacher-subject"
-          class="w-full p-2 border rounded"
+        <label class="block text-sm font-semibold mb-1">Email</label>
+        <input id="teacher-email"
+          type="email"
+          class="w-full p-3 border rounded"
           style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+          placeholder="your.email@school.edu"
+          value="${t.email || ""}">
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold mb-1">Subject</label>
+        <input id="teacher-subject"
+          class="w-full p-3 border rounded"
+          style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+          placeholder="e.g., Mathematics, Science"
           value="${t.subject || ""}">
       </div>
 
       <div>
-        <label class="block text-sm font-semibold">School</label>
+        <label class="block text-sm font-semibold mb-1">School</label>
         <input id="teacher-school"
-          class="w-full p-2 border rounded"
-           style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+          class="w-full p-3 border rounded"
+          style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+          placeholder="Your school name"
           value="${t.school || ""}">
       </div>
 
-      <button class="mt-2 px-4 py-2" style="background-color: var(--primary); color: white; border-radius: var(--radius);"
+      <button class="mt-4 w-full px-6 py-3 rounded font-semibold" 
+        style="background-color: var(--primary); color: var(--on-primary, var(--text)); border-radius: var(--radius);"
         onclick="
           saveTeacherProfile({
             name: document.getElementById('teacher-name').value.trim(),
+            email: document.getElementById('teacher-email').value.trim(),
             subject: document.getElementById('teacher-subject').value.trim(),
             school: document.getElementById('teacher-school').value.trim()
           })
         ">
-        Save Profile
+        💾 Save Profile
       </button>
     </div>
   `;
@@ -4128,8 +4386,277 @@ function getTeacherProfile() {
 
 function saveTeacherProfile(profile) {
   localStorage.setItem("teacherProfile", JSON.stringify(profile));
+  // Sync to backend asynchronously
+  syncTeacherProfileToBackend(profile);
   teacherTab = "profile";
   renderApp();
+}
+
+// ============= TEACHER CLASSES VIEW =============
+function renderTeacherClasses() {
+  const teacherId = window.currentTeacher?.id || 'teacher_' + localStorage.getItem('currentTeacherId');
+  const classes = getTeacherClasses(teacherId);
+
+  return `
+    <div class="w-full p-6 space-y-6" style="background: var(--card-bg); color: var(--text);">
+      <div class="max-w-4xl mx-auto fade-in">
+        
+        <h2 class="text-2xl font-bold mb-6">📚 My Classes</h2>
+        
+        <!-- Create New Class Form -->
+        <div class="p-6 rounded-xl shadow space-y-4 mb-6" style="background: var(--card-bg);">
+          <h3 class="text-xl font-semibold">Create New Class</h3>
+          
+          <div>
+            <label class="block text-sm font-semibold mb-1">Class Name *</label>
+            <input id="new-class-name" 
+              class="w-full p-3 border rounded"
+              style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+              placeholder="e.g., Physics 101">
+          </div>
+          
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold mb-1">Subject</label>
+              <input id="new-class-subject" 
+                class="w-full p-3 border rounded"
+                style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+                placeholder="e.g., Physics">
+            </div>
+            
+            <div>
+              <label class="block text-sm font-semibold mb-1">Grade Level</label>
+              <input id="new-class-grade" 
+                class="w-full p-3 border rounded"
+                style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+                placeholder="e.g., 10th Grade">
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-semibold mb-1">Description</label>
+            <textarea id="new-class-description" 
+              class="w-full p-3 border rounded"
+              style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+              rows="3"
+              placeholder="Brief description of the class"></textarea>
+          </div>
+          
+          <button class="w-full py-3 rounded-lg font-semibold"
+            style="background: var(--primary); color: var(--on-primary, var(--text));"
+            onclick="createNewClass()">
+            ➕ Create Class
+          </button>
+        </div>
+        
+        <!-- Class List -->
+        <div class="space-y-4">
+          ${classes.length === 0 ? `
+            <div class="p-6 rounded-xl text-center" style="background: var(--card-bg); color: var(--on-surface);">
+              <p class="text-lg">No classes created yet</p>
+              <p class="text-sm mt-2" style="color: var(--on-surface-variant);">Create your first class above!</p>
+            </div>
+          ` : classes.map(cls => {
+            const quizzes = getClassQuizzes(cls.id);
+            return `
+              <div class="p-6 rounded-xl shadow space-y-4" style="background: var(--card-bg); box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <h3 class="text-xl font-bold">${cls.name}</h3>
+                    ${cls.subject ? `<p class="text-sm" style="color: var(--on-surface-variant);">📖 ${cls.subject}</p>` : ''}
+                    ${cls.grade ? `<p class="text-sm" style="color: var(--on-surface-variant);">🎓 ${cls.grade}</p>` : ''}
+                    ${cls.description ? `<p class="text-sm mt-2">${cls.description}</p>` : ''}
+                  </div>
+                  
+                  <button class="px-4 py-2 rounded-lg"
+                    style="background: rgba(239,68,68,.15); color:#dc2626;"
+                    onclick="deleteTeacherClass('${cls.id}')">
+                    🗑 Delete
+                  </button>
+                </div>
+                
+                <div class="p-4 rounded-lg" style="background: var(--primary); color: var(--on-primary, var(--text));">
+                  <p class="font-semibold">Class Code:</p>
+                  <div class="flex items-center gap-3 mt-2">
+                    <code class="text-2xl font-bold tracking-wider">${cls.classCode}</code>
+                    <button class="px-3 py-1 rounded-lg" 
+                      style="background: rgba(255,255,255,0.2);"
+                      onclick="navigator.clipboard.writeText('${cls.classCode}'); toast('✅ Class code copied!')">
+                      📋 Copy
+                    </button>
+                  </div>
+                  <p class="text-sm mt-1" style="opacity: 0.9;">Share this code with students to join</p>
+                </div>
+                
+                <!-- Quizzes Section -->
+                <div>
+                  <div class="flex justify-between items-center mb-3">
+                    <h4 class="font-semibold">Assigned Quizzes (${quizzes.length})</h4>
+                    <button class="px-4 py-2 rounded-lg"
+                      style="background: var(--primary); color: var(--on-primary, var(--text));"
+                      onclick="openAddQuizToClassModal('${cls.id}')">
+                      ➕ Add Quiz
+                    </button>
+                  </div>
+                  
+                  ${quizzes.length === 0 ? `
+                    <p class="text-sm" style="color: var(--on-surface-variant);">No quizzes assigned yet</p>
+                  ` : `
+                    <div class="space-y-2">
+                      ${quizzes.map(quiz => `
+                        <div class="p-3 rounded-lg flex justify-between items-center"
+                          style="background: var(--input-bg);">
+                          <div>
+                            <p class="font-semibold">${quiz.title || 'Untitled Quiz'}</p>
+                            <p class="text-xs" style="color: var(--on-surface-variant);">
+                              ${quiz.questions?.length || 0} questions
+                              ${quiz.timeLimit ? ` • ${quiz.timeLimit} min` : ''}
+                            </p>
+                          </div>
+                          <button class="px-3 py-1 rounded-lg text-sm"
+                            style="background: rgba(239,68,68,.15); color:#dc2626;"
+                            onclick="removeQuizFromClass('${cls.id}', '${quiz.id}')">
+                            Remove
+                          </button>
+                        </div>
+                      `).join('')}
+                    </div>
+                  `}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============= STUDENT CLASSES VIEW =============
+function renderStudentClasses() {
+  const enrolledClasses = getStudentEnrolledClasses();
+  const allClasses = JSON.parse(localStorage.getItem(TEACHER_CLASSES_KEY) || "[]");
+  
+  return `
+    <div class="w-full p-6 space-y-6" style="background: var(--card-bg); color: var(--text);">
+      <div class="max-w-4xl mx-auto fade-in">
+        
+        <h2 class="text-2xl font-bold mb-6">📚 My Classes</h2>
+        
+        <!-- Join Class Form -->
+        <div class="p-6 rounded-xl shadow space-y-4 mb-6" style="background: var(--card-bg);">
+          <h3 class="text-xl font-semibold">Join a Class</h3>
+          <p class="text-sm" style="color: var(--on-surface-variant);">
+            Enter the class code provided by your teacher
+          </p>
+          
+          <div class="flex gap-3">
+            <input id="class-code-input" 
+              class="flex-1 p-3 border rounded-lg"
+              style="border-color: var(--border); background: var(--input-bg); color: var(--on-surface);"
+              placeholder="Enter class code (e.g., ABC123)"
+              maxlength="6">
+            
+            <button class="px-6 py-3 rounded-lg font-semibold"
+              style="background: var(--primary); color: var(--on-primary, var(--text));"
+              onclick="enrollInClass()">
+              Join Class
+            </button>
+          </div>
+        </div>
+        
+        <!-- Enrolled Classes List -->
+        <div class="space-y-4">
+          ${enrolledClasses.length === 0 ? `
+            <div class="p-6 rounded-xl text-center" style="background: var(--surface); color: var(--on-surface);">
+              <p class="text-lg">Not enrolled in any classes yet</p>
+              <p class="text-sm mt-2" style="color: var(--on-surface-variant);">Join a class using the code above!</p>
+            </div>
+          ` : enrolledClasses.map(enrollment => {
+            const classData = allClasses.find(c => c.id === enrollment.classId);
+            
+            if (!classData) {
+              return '';
+            }
+            
+            const quizzes = getClassQuizzes(classData.id);
+            const studentId = window.currentStudent?.id;
+            
+            return `
+              <div class="p-6 rounded-xl shadow space-y-4" style="background: var(--card-bg); box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <h3 class="text-xl font-bold">${classData.name}</h3>
+                    ${classData.subject ? `<p class="text-sm" style="color: var(--on-surface-variant);">📖 ${classData.subject}</p>` : ''}
+                    ${classData.grade ? `<p class="text-sm" style="color: var(--on-surface-variant);">🎓 ${classData.grade}</p>` : ''}
+                    ${classData.description ? `<p class="text-sm mt-2">${classData.description}</p>` : ''}
+                  </div>
+                  
+                  <button class="px-4 py-2 rounded-lg text-sm"
+                    style="background: rgba(239,68,68,.15); color:#dc2626;"
+                    onclick="unenrollFromClass('${classData.id}')">
+                    Leave Class
+                  </button>
+                </div>
+                
+                <!-- Available Quizzes -->
+                <div>
+                  <h4 class="font-semibold mb-3">Available Quizzes (${quizzes.length})</h4>
+                  
+                  ${quizzes.length === 0 ? `
+                    <p class="text-sm" style="color: var(--on-surface-variant);">No quizzes available yet</p>
+                  ` : `
+                    <div class="space-y-2">
+                      ${quizzes.map(quiz => {
+                        const attempts = getStudentQuizAttempts(studentId, quiz.id);
+                        const attemptLimit = getQuizAttemptLimit(classData.id, quiz.id);
+                        const canTakeQuiz = attempts.length < attemptLimit;
+                        const bestScore = attempts.length > 0 
+                          ? Math.max(...attempts.map(a => (a.score / a.totalQuestions) * 100))
+                          : null;
+                        
+                        return `
+                          <div class="p-4 rounded-lg"
+                            style="background: var(--input-bg);">
+                            <div class="flex justify-between items-center">
+                              <div class="flex-1">
+                                <p class="font-semibold text-lg">${quiz.title || 'Untitled Quiz'}</p>
+                                <p class="text-sm" style="color: var(--on-surface-variant);">
+                                  ${quiz.questions?.length || 0} questions
+                                  ${quiz.timeLimit ? ` • ${quiz.timeLimit} min` : ''}
+                                </p>
+                                <p class="text-xs mt-1" style="color: var(--on-surface-variant);">
+                                  Attempts: ${attempts.length}/${attemptLimit}
+                                  ${bestScore !== null ? ` • Best Score: ${bestScore.toFixed(0)}%` : ''}
+                                </p>
+                              </div>
+                              
+                              ${canTakeQuiz ? `
+                                <button class="px-5 py-3 rounded-lg font-semibold"
+                                  style="background: var(--primary); color: var(--on-primary, var(--text));"
+                                  onclick="startClassQuiz('${quiz.id}')">
+                                  Start Quiz
+                                </button>
+                              ` : `
+                                <div class="px-5 py-3 rounded-lg text-sm font-semibold"
+                                  style="background: rgba(239,68,68,.15); color:#dc2626;">
+                                  Max Attempts Reached
+                                </div>
+                              `}
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  `}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 
@@ -4147,7 +4674,7 @@ function renderTeacherQuizList() {
   <button 
     onclick="navigator.clipboard.writeText('${q.quizId}')" 
     class="px-3 py-1 rounded-full text-sm"
-    style="background: var(--primary); color: white; flex-shrink: 1;"
+    style="background: var(--primary); color: var(--on-primary, var(--text)); flex-shrink: 1;"
   >
     Copy
   </button>
@@ -4500,7 +5027,7 @@ async function generatePDFQuiz() {
     formData.append('numQuestions', count);
 
     // Use local backend or replace with your deployed URL
-    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:5000';
+    // Generate mock quiz questions based on topic instead of calling missing API
 
     const res = await fetch(`${backendUrl}/api/generate-quiz-from-document`, {
       method: 'POST',
@@ -4768,40 +5295,40 @@ async function generateAIQuiz() {
   if (!topic) return toast("Topic is required");
 
   try {
-    // Use backend URL from localStorage or default
-    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:5000';
+    const backendUrl = getBackendUrl();
 
-    const res = await fetch(`${backendUrl}/api/generate-quiz`, {
+    const res = await fetch(`${backendUrl}/api/ai/quiz`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic, numQuestions: count })
+      body: JSON.stringify({
+        topic,
+        count
+      })
     });
 
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "AI backend error");
+      const errText = await res.text();
+      throw new Error(`Backend error: ${errText}`);
     }
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    const qs = data.questions || [];
 
-    teacherQuestions = data.questions.map(q => {
-      let options = [...(q.options || [])];
+    if (!Array.isArray(qs) || qs.length === 0) {
+      throw new Error("AI returned no questions. Check OPENAI_API_KEY on backend.");
+    }
 
-      options = shuffleArray(options);
+    teacherQuestions = qs.slice(0, count).map(q => {
+      const opts = Array.isArray(q.options) && q.options.length >= 2 ? q.options : ["Option A", "Option B", "Option C", "Option D"];
+      const options = shuffleArray([...opts]);
 
-      const correctText = (q.correct || "").trim().toLowerCase();
-      let correctIndex = options.findIndex(
-        opt => opt.trim().toLowerCase() === correctText
-      );
-
-      if (correctIndex === -1) {
-        correctIndex = Math.floor(Math.random() * options.length);
-      }
-
+      const correctText = (q.correct || q.answer || "").trim().toLowerCase();
+      let correctIndex = options.findIndex(opt => opt.trim().toLowerCase() === correctText);
+      if (correctIndex === -1) correctIndex = 0;
       const correctLetter = String.fromCharCode(65 + correctIndex);
 
       return {
-        question: q.question || "",
+        question: q.question || q.front || "",
         options,
         correct: correctLetter
       };
@@ -4813,7 +5340,7 @@ async function generateAIQuiz() {
     topicInput.value = "";
     countInput.value = "";
 
-    toast(`✅ ${teacherQuestions.length} questions generated!`);
+    toast(`✅ ${teacherQuestions.length} AI questions generated!`);
 
     currentView = "teacher";
     renderApp();
@@ -4822,10 +5349,6 @@ async function generateAIQuiz() {
     toast("❌ Failed to generate AI quiz: " + err.message);
   }
 }
-
-
-
-
 
 
 function previewTeacherQuiz() {
@@ -4855,6 +5378,10 @@ function previewTeacherQuiz() {
 
 
 async function editTeacherQuiz(quizId) {
+  if (!quizId) {
+    toast("❌ Quiz id missing; refresh and try again");
+    return;
+  }
   try {
     const res = await fetch(
       `${getBackendUrl()}/api/quizzes/${quizId}`
@@ -5184,11 +5711,11 @@ function renderTeacherQuizView() {
               <div class="text-center">
                 <div class="flex items-center gap-2 mb-2">
                   <div class="px-3 py-1 rounded-full text-xs font-semibold"
-                       style="background: linear-gradient(135deg, var(--surface), var(--card-bg)); color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                       style="background: linear-gradient(135deg, var(--surface), var(--card-bg)); color: var(--on-surface, var(--text)); box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                     👨‍🏫 Teacher Quiz
                   </div>
                   <div class="px-2 py-1 rounded-full text-xs font-semibold"
-                       style="background: linear-gradient(135deg, var(--primary), var(--primary)); color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                       style="background: linear-gradient(135deg, var(--primary), var(--primary)); color: var(--on-primary, var(--text)); box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                     Q ${quizIndex + 1} / ${quizQuestions.length}
                   </div>
                 </div>
@@ -5211,7 +5738,7 @@ function renderTeacherQuizView() {
           <div class="backdrop-blur-md bg-white/95 dark:bg-slate-800/95 rounded-3xl p-6 mb-6 shadow-2xl border border-white/30 transform hover:scale-[1.02] transition-all duration-300">
             <div class="flex items-start gap-4 mb-6">
               <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg"
-                   style="background: linear-gradient(135deg, var(--primary), var(--surface)); color: white; box-shadow: 0 4px 12px #8b5cf630;">
+                   style="background: linear-gradient(135deg, var(--primary), var(--surface)); color: var(--on-primary, var(--text)); box-shadow: 0 4px 12px #8b5cf630;">
                 Q${quizIndex + 1}
               </div>
               <div class="flex-1">
@@ -5257,16 +5784,16 @@ function renderTeacherQuizView() {
 
               if (showResult) {
                 if (isCorrect) {
-                  buttonStyle = `background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: 2px solid #16a34a;`;
+                  buttonStyle = `background: linear-gradient(135deg, #22c55e, #16a34a); color: var(--on-primary, var(--text)); border: 2px solid #16a34a;`;
                   letterBg = `background: linear-gradient(135deg, #16a34a, #15803d);`;
                 } else if (isConfirmed && !isCorrect) {
-                  buttonStyle = `background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: 2px solid #dc2626;`;
+                  buttonStyle = `background: linear-gradient(135deg, #ef4444, #dc2626); color: var(--on-primary, var(--text)); border: 2px solid #dc2626;`;
                   letterBg = `background: linear-gradient(135deg, #dc2626, #b91c1c);`;
                 } else {
                   buttonStyle = `background: linear-gradient(135deg, ${bg}, rgba(255,255,255,0.1)); color:${text}; border: 2px solid rgba(255,255,255,0.2); opacity: 0.6;`;
                 }
               } else if (isSelected) {
-                buttonStyle = `background: linear-gradient(135deg, ${primary}, ${primary}dd); color: white; border: 2px solid rgba(255,255,255,0.3);`;
+                buttonStyle = `background: linear-gradient(135deg, ${primary}, ${primary}dd); color: var(--on-primary, var(--text)); border: 2px solid rgba(255,255,255,0.3);`;
                 letterBg = `background: linear-gradient(135deg, white, rgba(255,255,255,0.8)); color: ${primary};`;
               }
 
@@ -5324,7 +5851,7 @@ function renderTeacherQuizView() {
 
             <button onclick="confirmTeacherQuiz()"
                     class="px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 quiz-option"
-                    style="background: linear-gradient(135deg, ${primary}, ${primary}dd); color: white; border: 2px solid rgba(255,255,255,0.2); min-height: 48px;"
+                    style="background: linear-gradient(135deg, ${primary}, ${primary}dd); color: var(--on-primary, var(--text)); border: 2px solid rgba(255,255,255,0.2); min-height: 48px;"
                     ${isAnswered ? 'disabled' : ''}>
               <span class="flex items-center gap-2">
                 ${isAnswered ? '✓ Confirmed' : 'Confirm Answer'}
@@ -5772,49 +6299,61 @@ function populateTeacherStudentScores() {
   `;
 }
 
-function toggleQuizSection(quizId) {
+async function toggleQuizSection(quizId) {
   const section = document.getElementById(`quiz-${quizId}`);
   const icon = document.getElementById(`icon-${quizId}`);
   if (!section) return;
 
   const hidden = section.classList.toggle("hidden");
   icon.textContent = hidden ? "▾" : "▴";
-}
+    const backendUrl = getBackendUrl();
 
-function hideStudentScoreForMe(scoreId) {
-  // Ensure we have a valid student object
-  const student = window.currentStudent || JSON.parse(localStorage.getItem("currentStudent") || "{}");
-  if (!student || !student.id) {
-    toast("Student information missing!");
-    return;
-  }
+    const res = await fetch(`${backendUrl}/api/ai/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: `Create ${count} multiple-choice questions about ${topic}. Return JSON {"questions":[{"question":"...","options":["A","B","C","D"],"correct":"B"}]}. Keep options concise.`
+      })
+    });
 
-  const key = `hiddenScores_${student.id}`;
-  const hiddenScores = JSON.parse(localStorage.getItem(key) || "[]");
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Backend error: ${errText}`);
+    }
 
-  if (!hiddenScores.includes(scoreId)) hiddenScores.push(scoreId);
-  localStorage.setItem(key, JSON.stringify(hiddenScores));
+    const data = await res.json().catch(() => ({}));
+    const qs = data.questions || data.cards || [];
 
-  // Ensure the UI refresh uses the latest student data
-  populateStudentScores();
-}
+    if (!Array.isArray(qs) || qs.length === 0) {
+      throw new Error("AI returned no questions. Check OPENAI_API_KEY on backend.");
+    }
 
+    teacherQuestions = qs.slice(0, count).map(q => {
+      const opts = Array.isArray(q.options) && q.options.length >= 2 ? q.options : ["Option A", "Option B", "Option C", "Option D"];
+      const options = shuffleArray([...opts]);
 
+      const correctText = (q.correct || q.answer || "").trim().toLowerCase();
+      let correctIndex = options.findIndex(opt => opt.trim().toLowerCase() === correctText);
+      if (correctIndex === -1) correctIndex = 0;
+      const correctLetter = String.fromCharCode(65 + correctIndex);
 
-function deleteStudentScoreById(scoreId) {
-  if (!confirm("Delete this score?")) return;
+      return {
+        question: q.question || q.front || "",
+        options,
+        correct: correctLetter
+      };
+    });
 
-  const scores = JSON.parse(localStorage.getItem("studentQuizScores") || "[]");
-  const updated = scores.filter(s => s.id !== scoreId);
+    window._teacherTitleDraft = `${topic} Quiz`;
 
-  localStorage.setItem("studentQuizScores", JSON.stringify(updated));
+    closeAIQuizModal();
+    topicInput.value = "";
+    countInput.value = "";
 
-  if (currentView === "student-score-history") populateStudentScores();
-  if (currentView === "teacher-view-scores") populateTeacherStudentScores();
-}
+    toast(`✅ ${teacherQuestions.length} AI questions generated!`);
 
-
-function deleteStudentScore(index) {
+    currentView = "teacher";
+    renderApp();
   const scores = JSON.parse(localStorage.getItem("studentQuizScores") || "[]");
   if (index < 0 || index >= scores.length) return;
   if (!confirm("Delete this score?")) return;
@@ -6074,9 +6613,9 @@ function renderTeacherQuizResultView() {
                           let optionStyle = `background: linear-gradient(135deg, ${bg}, rgba(255,255,255,0.1)); color:${text};`;
 
                           if (isCorrectChoice) {
-                            optionStyle = `background: linear-gradient(135deg, #22c55e, #16a34a); color: white;`;
+                            optionStyle = `background: linear-gradient(135deg, #22c55e, #16a34a); color: var(--on-primary, var(--text));`;
                           } else if (isUserChoice && !isCorrect) {
-                            optionStyle = `background: linear-gradient(135deg, #ef4444, #dc2626); color: white;`;
+                            optionStyle = `background: linear-gradient(135deg, #ef4444, #dc2626); color: var(--on-primary, var(--text));`;
                           }
 
                           return `
@@ -6113,7 +6652,7 @@ function renderTeacherQuizResultView() {
 
             <button onclick="startTeacherQuiz()"
               class="px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl quiz-option"
-              style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border: 2px solid rgba(255,255,255,0.2); min-height: 48px;">
+              style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: var(--on-primary, var(--text)); border: 2px solid rgba(255,255,255,0.2); min-height: 48px;">
               <span class="flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -6645,24 +7184,24 @@ function renderSubjectsView() {
     const sets = getSetsForSubject(subject.subject_id);
 
     return `
-      <div class="category-card card-touch relative p-6 rounded-2xl shadow-sm bg-white flex flex-col items-center text-center quiz-option"
+      <div class="category-card card-touch relative p-6 rounded-2xl shadow-sm flex flex-col items-center text-center quiz-option" style="background: var(--card-bg); box-shadow: 0 4px 12px rgba(37,99,235,0.3); color: var(--text);"
            data-subject-id="${subject.subject_id}">
 
         <button
           class="delete-subject-btn absolute top-3 right-3 text-gray-500 hover:text-red-500 w-8 h-8 flex items-center justify-center rounded-full"
           data-subject-id="${subject.subject_id}"
           aria-label="Delete subject"
-          style="min-height: 32px; min-width: 32px;"
+          style="min-height: 32px; min-width: 32px; box-shadow: 0 4px 12px rgba(37,99,235,0.3);"
         >
           ×
         </button>
 
-        <div class="category-icon mb-4 w-20 h-20 flex items-center justify-center rounded-full bg-gray-100 text-3xl">
+        <div class="category-icon mb-4 w-20 h-20 flex items-center justify-center rounded-full" style="background: var(--primary); box-shadow: 0 4px 12px rgba(0,0,0,0.08); color: var(--text);">
           ${subject.subject_icon}
         </div>
 
         <div class="category-meta">
-          <h2 class="category-title text-xl font-semibold mb-2">${subject.subject_name}</h2>
+          <h2 class="category-title text-xl font-semibold mb-2" style="color: var(--text);">${subject.subject_name}</h2>
           <p class="category-subtitle text-base text-gray-500">
             ${sets.length} set${sets.length !== 1 ? "s" : ""}
           </p>
@@ -6748,7 +7287,7 @@ function renderSetsView() {
 
         ${cards.length > 0 ? `
           <button class="study-set-btn mt-4 px-6 py-3 rounded-lg quiz-option" data-set-id="${set.set_id}" 
-                  style="background: var(--primary); color: white; font-size: calc(var(--font-size) * 0.875); min-height: 48px;">
+                  style="background: var(--primary); color: var(--on-primary, var(--text)); font-size: calc(var(--font-size) * 0.875); min-height: 48px;">
             Study Now
           </button>` : ''}
       </div>
@@ -6781,7 +7320,7 @@ function renderSetsView() {
           <!-- Add Set Button -->
           <div class="mb-6">
             <button id="addSetBtn" class="w-full py-5 rounded-xl transition-all font-semibold quiz-option"
-                    style="background: var(--primary); color: white; font-size: calc(var(--font-size) * 1.1); box-shadow: 0 4px 12px rgba(37,99,235,0.3); min-height: 56px;">
+                    style="background: var(--primary); color: var(--on-primary, var(--text)); font-size: calc(var(--font-size) * 1.1); box-shadow: 0 4px 12px rgba(37,99,235,0.3); min-height: 56px;">
               + Add New Set
             </button>
           </div>
@@ -6862,33 +7401,33 @@ function renderCardsView() {
           <div class="cards-actions mb-6">
           <div class="actions-inner grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             <button id="addCardBtn" class="action-btn quiz-option py-4 px-3 rounded-lg text-center"
-                    style="background: var(--primary); color: white; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    style="background: var(--primary); color: var(--on-primary, var(--text)); min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
               <img src="icons/add.svg" class="icon md" />
               <span class="text-sm">Add</span>
             </button>
 
             <button id="aiGenerateBtn" class="action-btn quiz-option py-4 px-3 rounded-lg text-center"
-                    style="background: var(--secondary); color: white; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    style="background: var(--secondary); color: var(--on-primary, var(--text)); min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
               <img src="icons/ai.svg" class="icon md" />
               <span class="text-sm">AI</span>
             </button>
 
             <button id="importCardsJsonBtn" class="action-btn quiz-option py-4 px-3 rounded-lg text-center"
-                    style="background: var(--accent); color: white; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    style="background: var(--accent); color: var(--on-primary, var(--text)); min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
               <img src="icons/import.svg" class="icon md" />
               <span class="text-sm">Import</span>
             </button>
 
             ${cards.length > 0 ? `
               <button id="studyCardsBtn" class="action-btn quiz-option py-4 px-3 rounded-lg text-center"
-                      style="background: var(--success); color: white; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                      style="background: var(--success); color: var(--on-primary, var(--text)); min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
                 <img src="icons/flashcard.svg" class="icon md" />
                 <span class="text-sm">Study</span>
               </button>` : ""}
 
             ${cards.length > 1 ? `
               <button id="quizCardsBtn" class="action-btn quiz-option py-4 px-3 rounded-lg text-center"
-                      style="background: var(--warning); color: white; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                      style="background: var(--warning); color: var(--on-primary, var(--text)); min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
                 <img src="icons/quiz.svg" class="icon md" />
                 <span class="text-sm">Quiz</span>
               </button>` : ""}
@@ -7139,7 +7678,7 @@ function renderStudyView() {
  color: rgba(255,255,255,0.9); font-weight: 400; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem;">Answer</p>
                         <p style="font-size: calc(var(--font-size) * 1.75);
 
- color: white; font-weight: 400; line-height: 1.6;" id="card-answer">${card.answer}</p>
+ color: var(--on-primary, var(--text)); font-weight: 400; line-height: 1.6;" id="card-answer">${card.answer}</p>
                       </div>
                     </div>
                   </div>
@@ -7147,7 +7686,7 @@ function renderStudyView() {
               </div>
 
               <div class="flex flex-col gap-4">
-                <button id="flipBtn" class="w-full py-5 rounded-xl transition-all font-semibold quiz-option" style="background: var(--primary); color: white; font-size: calc(var(--font-size) * 1.1);
+                <button id="flipBtn" class="w-full py-5 rounded-xl transition-all font-semibold quiz-option" style="background: var(--primary); color: var(--on-primary, var(--text)); font-size: calc(var(--font-size) * 1.1);
  box-shadow: 0 4px 12px rgba(37,99,235,0.3); min-height: 56px;">
                   Flip Card
                 </button>
@@ -7279,7 +7818,7 @@ function renderClassQuizView() {
         <h2 class="text-2xl font-bold text-center">Quiz Complete!</h2>
         
         <div class="p-6 rounded-lg text-center"
-             style="background: linear-gradient(135deg, var(--primary), var(--primary)dd); color: white;">
+             style="background: linear-gradient(135deg, var(--primary), var(--primary)dd); color: var(--on-primary, var(--text));">
           <div style="font-size: 48px; font-weight: bold; margin-bottom: 10px;">${state.score}/${questions.length}</div>
           <div style="font-size: 18px;">Score: ${Math.round((state.score / questions.length) * 100)}%</div>
         </div>
@@ -7390,7 +7929,7 @@ function renderClassQuizView() {
                 font-weight: ${isSelected ? 'bold' : 'normal'};
               "
               onclick="window._classQuizState.answers[${state.currentIndex}] = '${option}'; renderApp()">
-                <span style="display: inline-block; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--primary); margin-right: 10px; text-align: center; line-height: 24px; ${isSelected ? 'background: var(--primary); color: white;' : ''} font-weight: bold;">
+                <span style="display: inline-block; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--primary); margin-right: 10px; text-align: center; line-height: 24px; ${isSelected ? 'background: var(--primary); color: var(--on-primary, var(--text));' : ''} font-weight: bold;">
                   ${isSelected ? '✓' : letter}
                 </span>
                 <span style="font-weight: bold; color: var(--primary); margin-right: 8px;">${letter})</span>${option}
@@ -7415,13 +7954,13 @@ function renderClassQuizView() {
             Next →
           </button>
         ` : `
-          <button style="flex: 1; padding: 12px; background: var(--success); color: white; border-radius: 6px; cursor: pointer; font-weight: bold;"
+          <button style="flex: 1; padding: 12px; background: var(--success); color: var(--on-primary, var(--text)); border-radius: 6px; cursor: pointer; font-weight: bold;"
                   onclick="finishClassQuiz()">
             Submit Quiz
           </button>
         `}
         
-        <button style="flex: 1; padding: 12px; background: var(--error); color: white; border-radius: 6px; cursor: pointer; font-weight: bold;"
+        <button style="flex: 1; padding: 12px; background: var(--error); color: var(--on-primary, var(--text)); border-radius: 6px; cursor: pointer; font-weight: bold;"
                 onclick="if(confirm('Are you sure you want to exit this quiz without submitting?')) { currentView='student'; studentTab='classes'; window._classQuiz = null; window._classQuizState = null; renderApp(); }">
           Exit
         </button>
@@ -7560,11 +8099,11 @@ function renderQuizView() {
               <div class="text-right">
                 <div class="flex items-center gap-3 mb-2">
                   <div class="px-3 py-1 rounded-full text-xs font-semibold"
-                       style="background: linear-gradient(135deg, var(--primary), var(--primary)); color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                       style="background: linear-gradient(135deg, var(--primary), var(--primary)); color: var(--on-primary, var(--text)); box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                     Q ${quizIndex + 1} / ${quizQuestions.length}
                   </div>
                   <div class="px-3 py-1 rounded-full text-xs font-semibold"
-                       style="background: linear-gradient(135deg, #22c55e, #16a34a); color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                       style="background: linear-gradient(135deg, #22c55e, #16a34a); color: var(--on-primary, var(--text)); box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                     ⭐ ${quizScore}
                   </div>
                 </div>
@@ -7595,19 +8134,19 @@ function renderQuizView() {
 
                 <button onclick="applyTimerSettings()"
                         class="px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
-                        style="background: linear-gradient(135deg, ${primary}, ${primary}dd); color: white; border: 2px solid rgba(255,255,255,0.2);">
+                        style="background: linear-gradient(135deg, ${primary}, ${primary}dd); color: var(--on-primary, var(--text)); border: 2px solid rgba(255,255,255,0.2);">
                   Set Timer
                 </button>
 
                 <div class="flex gap-2">
                   <button onclick="startStudyTimer()"
                           class="flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
-                          style="background: linear-gradient(135deg, #22c55e, #16a34a); color: white;">
+                          style="background: linear-gradient(135deg, #22c55e, #16a34a); color: var(--on-primary, var(--text));">
                     ▶ Start
                   </button>
                   <button onclick="stopStudyTimer()"
                           class="flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
-                          style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white;">
+                          style="background: linear-gradient(135deg, #ef4444, #dc2626); color: var(--on-primary, var(--text));">
                     ⏸ Pause
                   </button>
                 </div>
@@ -7619,7 +8158,7 @@ function renderQuizView() {
           <div class="backdrop-blur-md bg-white/95 dark:bg-slate-800/95 rounded-3xl p-8 mb-8 shadow-2xl border border-white/30 transform hover:scale-[1.02] transition-all duration-300">
             <div class="flex items-start gap-4 mb-6">
               <div class="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-xl"
-                   style="background: linear-gradient(135deg, var(--primary), var(--primary)); color: white; box-shadow: 0 4px 12px var(--primary)30;">
+                   style="background: linear-gradient(135deg, var(--primary), var(--primary)); color: var(--on-primary, var(--text)); box-shadow: 0 4px 12px var(--primary)30;">
                 Q${quizIndex + 1}
               </div>
               <div class="flex-1">
@@ -7650,7 +8189,7 @@ function renderQuizView() {
                       ">
                 <div class="flex items-center gap-4">
                   <div class="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300 group-hover:scale-110"
-                       style="background: linear-gradient(135deg, ${primary}, ${primary}dd); color: white; box-shadow: 0 4px 12px ${primary}30;">
+                       style="background: linear-gradient(135deg, ${primary}, ${primary}dd); color: var(--on-primary, var(--text)); box-shadow: 0 4px 12px ${primary}30;">
                     ${String.fromCharCode(65 + index)}
                   </div>
                   <div class="flex-1 font-medium leading-relaxed text-base">
@@ -7810,7 +8349,7 @@ function renderQuizResultView() {
           <div class="space-y-3">
             <button id="exitQuizBtn"
               class="w-full py-4 px-6 rounded-2xl font-bold text-base transition-all duration-300 hover:scale-105 active:scale-95 shadow-xl hover:shadow-2xl quiz-option"
-              style="background: linear-gradient(135deg, ${primary}, ${primary}dd); color: white; border: 2px solid rgba(255,255,255,0.2); min-height: 56px;">
+              style="background: linear-gradient(135deg, ${primary}, ${primary}dd); color: var(--on-primary, var(--text)); border: 2px solid rgba(255,255,255,0.2); min-height: 56px;">
               <span class="flex items-center justify-center gap-3">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
@@ -7895,7 +8434,7 @@ function showAddSubjectModal() {
                 Cancel
               </button>
               <button type="submit" id="submitSubjectBtn" style="flex: 1; padding: 0.75rem; border-radius: var(--radius); font-size: var(--font-size);
- background: var(--primary); color: white; border: none; cursor: pointer; font-weight: 400;">
+ background: var(--primary); color: var(--on-primary, var(--text)); border: none; cursor: pointer; font-weight: 400;">
                 <span id="submitSubjectText">Add Subject</span>
               </button>
             </div>
@@ -8039,7 +8578,7 @@ function showAddSetModal() {
                 Cancel
               </button>
               <button type="submit" id="submitSetBtn" style="flex: 1; padding: 0.75rem; border-radius: var(--radius); font-size: var(--font-size);
- background: var(--primary); color: white; border: none; cursor: pointer; font-weight: 400;">
+ background: var(--primary); color: var(--on-primary, var(--text)); border: none; cursor: pointer; font-weight: 400;">
                 <span id="submitSetText">Add Set</span>
               </button>
             </div>
@@ -8127,7 +8666,7 @@ function showAddCardModal() {
                 Cancel
               </button>
               <button type="submit" id="submitCardBtn" style="flex: 1; padding: 0.75rem; border-radius: var(--radius); font-size: var(--font-size);
- background: var(--primary); color: white; border: none; cursor: pointer; font-weight: 400;">
+ background: var(--primary); color: var(--on-primary, var(--text)); border: none; cursor: pointer; font-weight: 400;">
                 <span id="submitCardText">Add Card</span>
               </button>
             </div>
@@ -8347,7 +8886,7 @@ function showToast(message) {
     top: 2rem;
     right: 2rem;
     background: #1e293b;
-    color: white;
+    color: var(--on-primary, var(--text));
     padding: 1rem 1.5rem;
     border-radius: var(--radius);
     font-size: var(--font-size);

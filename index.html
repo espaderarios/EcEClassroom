@@ -301,6 +301,16 @@ if ('serviceWorker' in navigator) {
   <img src="icons/settings.svg" class="icon md" alt="settings" />
 </button>
 
+<script>
+// Initialize backend sync when app loads
+if (typeof initBackendSync === 'function') {
+  initBackendSync().then(() => {
+    console.log('App data synced with backend');
+  }).catch(err => {
+    console.log('Backend sync skipped:', err);
+  });
+}
+</script>
 
 <script>
 if ('serviceWorker' in navigator) {

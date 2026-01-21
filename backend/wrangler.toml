@@ -6,6 +6,32 @@ compatibility_date = "2026-01-21"
 # account_id = "YOUR_ACCOUNT_ID"
 # workers_dev = true
 
+# KV Namespaces for persistent storage
+[[kv_namespaces]]
+binding = "CLASSES"
+id = "b4d23f5e955447f5a8511790e9f16489"
+preview_id = "975370f19d14434abb9ecc374e484ca7"
+
+[[kv_namespaces]]
+binding = "QUIZZES"
+id = "14cbac0911d64d658c46e27bb8b35e8f"
+preview_id = "8d995c799371414ab66975c019835e39"
+
+[[kv_namespaces]]
+binding = "STUDENTS"
+id = "93519cae89f441dab556fb45ff21b235"
+preview_id = "7a656114ac0e49a8868e1c5685c8337d"
+
+[[kv_namespaces]]
+binding = "TEACHERS"
+id = "dfd9d34d81824f25b9d54f9e7f890d25"
+preview_id = "1e69eecaafd847f5b7bc52d219009a16"
+
+[[kv_namespaces]]
+binding = "ENROLLMENTS"
+id = "1bb9984865d74c42bac2bc3c401a65c3"
+preview_id = "d1de597873ed4546bce3444607f22309"
+
 # To enable the OpenAI-powered AI endpoint, add your secret with:
 #
 #   cd backend

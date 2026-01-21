@@ -1,48 +1,106 @@
 # ec-eclassroom backend (Cloudflare Workers)
 
-This folder contains a lightweight Cloudflare Workers backend scaffold for local development.
+This folder contains a Cloudflare Workers backend with **persistent KV storage** for cross-device sync and multi-user collaboration.
 
-Endpoints provided (in-memory store):
-- `GET /health` or `/` — basic health check
-- `POST /api/generate-cards` — body: `{ text, count }` returns mock cards
-- `GET|POST|PUT|DELETE /api/classes` — simple class CRUD
-- `GET|POST|PUT|DELETE /api/quizzes` — simple quiz CRUD
+## Features
 
+✅ **Persistent Cloud Storage** - Data stored in Cloudflare KV (survives restarts)  
+✅ **Cross-Device Sync** - Access your data from any browser/device  
+✅ **Multi-User Collaboration** - Share classes between users  
+✅ **RESTful API** - Full CRUD operations for all resources
+
+## Endpoints
+
+### Core Resources (with KV persistence)
+- `GET|POST|PUT|DELETE /api/classes` — Class management
+- `GET|POST|PUT|DELETE /api/quizzes` — Quiz management
+- `GET|POST|PUT|DELETE /api/students` — Student profiles
+- `GET|POST|PUT|DELETE /api/teachers` — Teacher profiles
+- `GET|POST|PUT|DELETE /api/enrollments` — Class enrollments
+
+### Utility Endpoints
+- `GET /health` or `/` — Health check
+- `POST /api/generate-cards` — Mock card generator
 - `POST /api/ai/generate` — AI-powered generator (requires `OPENAI_API_KEY` secret)
- - `POST /api/groq` — Proxy GROQ queries to Sanity (requires `SANITY_TOKEN` secret)
+- `POST /api/groq` — Proxy GROQ queries to Sanity (requires `SANITY_TOKEN` secret)
 
-Notes:
-- This implementation uses an in-memory store (`STORE`), so data is ephemeral.
-- For production, bind a KV namespace, D1, or Durable Objects and update `wrangler.toml` and `src/index.js` to use the binding.
+## Quick Start
 
-Local development
-
-1. Install Wrangler (if not installed):
-
-```bash
-npm install -g wrangler
-```
-
-2. From this folder run the dev server:
+### 1. Install Dependencies
 
 ```bash
 cd backend
-wrangler dev
+npm install
 ```
 
-3. To publish, set `account_id` in `wrangler.toml` and run:
+### 2. Create KV Namespaces
+
+Create the required KV namespaces in your Cloudflare account:
 
 ```bash
-wrangler publish
+# Create production namespaces
+npx wrangler kv:namespace create "CLASSES"
+npx wrangler kv:namespace create "QUIZZES"
+npx wrangler kv:namespace create "STUDENTS"
+npx wrangler kv:namespace create "TEACHERS"
+npx wrangler kv:namespace create "ENROLLMENTS"
+
+# Create preview namespaces for development
+npx wrangler kv:namespace create "CLASSES" --preview
+npx wrangler kv:namespace create "QUIZZES" --preview
+npx wrangler kv:namespace create "STUDENTS" --preview
+npx wrangler kv:namespace create "TEACHERS" --preview
+npx wrangler kv:namespace create "ENROLLMENTS" --preview
 ```
 
-AI endpoint setup
+### 3. Update wrangler.toml
+
+Copy the namespace IDs from the output above and update `wrangler.toml`:
+
+```toml
+[[kv_namespaces]]
+binding = "CLASSES"
+id = "your_classes_namespace_id_here"
+preview_id = "your_classes_preview_namespace_id_here"
+
+# ... repeat for other namespaces
+```
+
+### 4. Local Development
+
+```bash
+npx wrangler dev
+```
+
+The server will start at `http://localhost:8787` by default.
+
+### 5. Deploy to Production
+
+```bash
+# Set your Cloudflare account ID in wrangler.toml first
+# account_id = "your_account_id"
+
+npx wrangler deploy
+```
+
+After deployment, you'll get a URL like: `https://ec-eclassroom-backend.your-subdomain.workers.dev`
+
+### 6. Update Frontend
+
+Update your frontend to use the deployed URL:
+
+```javascript
+// In your app.js or settings
+setBackendUrl('https://ec-eclassroom-backend.your-subdomain.workers.dev');
+```
+
+## Optional: AI Endpoint Setup
 
 1. Add your OpenAI API key as a secret (do not store in repository):
 
 ```bash
 cd backend
-wrangler secret put OPENAI_API_KEY
+npx wrangler secret put OPENAI_API_KEY
 ```
 
 2. Example request to AI endpoint:

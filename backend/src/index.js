@@ -1,7 +1,26 @@
-const STORE = {
-  classes: [],
-  quizzes: []
-};
+// KV-based persistent storage helpers
+async function kvGet(kv, key) {
+  const value = await kv.get(key);
+  return value ? JSON.parse(value) : null;
+}
+
+async function kvGetAll(kv, prefix = '') {
+  const list = await kv.list({ prefix });
+  const items = [];
+  for (const key of list.keys) {
+    const value = await kv.get(key.name);
+    if (value) items.push(JSON.parse(value));
+  }
+  return items;
+}
+
+async function kvPut(kv, key, value) {
+  await kv.put(key, JSON.stringify(value));
+}
+
+async function kvDelete(kv, key) {
+  await kv.delete(key);
+}
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -20,40 +39,44 @@ function parseIdFromPath(pathname) {
   return parts.length >= 3 ? parts[2] : null;
 }
 
-async function handleCollection(request, pathname, key) {
+async function handleCollection(request, pathname, kv) {
   const id = parseIdFromPath(pathname);
+  
   if (request.method === 'GET') {
     if (id) {
-      const item = STORE[key].find(i => i.id === id);
+      const item = await kvGet(kv, id);
       return item ? jsonResponse(item) : jsonResponse({ error: 'Not found' }, 404);
     }
-    return jsonResponse(STORE[key]);
+    const items = await kvGetAll(kv);
+    return jsonResponse(items);
   }
 
   if (request.method === 'POST') {
     const body = await request.json().catch(() => ({}));
-    const newItem = Object.assign({ id: `${key}_${Date.now()}_${Math.random().toString(36).slice(2,6)}` }, body);
-    STORE[key].push(newItem);
+    const itemId = body.id || `${Date.now()}_${Math.random().toString(36).slice(2,9)}`;
+    const newItem = Object.assign({ id: itemId, createdAt: new Date().toISOString() }, body);
+    await kvPut(kv, itemId, newItem);
     return jsonResponse(newItem, 201);
   }
 
   if ((request.method === 'PUT' || request.method === 'PATCH') && id) {
+    const existing = await kvGet(kv, id);
+    if (!existing) {
+      return jsonResponse({ error: 'Not found' }, 404);
+    }
     const body = await request.json().catch(() => ({}));
-    let found = false;
-    STORE[key] = STORE[key].map(i => {
-      if (i.id === id) {
-        found = true;
-        return Object.assign({}, i, body);
-      }
-      return i;
-    });
-    return found ? jsonResponse({ ok: true }) : jsonResponse({ error: 'Not found' }, 404);
+    const updated = Object.assign({}, existing, body, { updatedAt: new Date().toISOString() });
+    await kvPut(kv, id, updated);
+    return jsonResponse(updated);
   }
 
   if (request.method === 'DELETE' && id) {
-    const before = STORE[key].length;
-    STORE[key] = STORE[key].filter(i => i.id !== id);
-    return before !== STORE[key].length ? jsonResponse({ ok: true }) : jsonResponse({ error: 'Not found' }, 404);
+    const existing = await kvGet(kv, id);
+    if (!existing) {
+      return jsonResponse({ error: 'Not found' }, 404);
+    }
+    await kvDelete(kv, id);
+    return jsonResponse({ ok: true });
   }
 
   return jsonResponse({ error: 'Method not allowed' }, 405);
@@ -132,6 +155,68 @@ export default {
           return jsonResponse({ cards });
         }
 
+        // AI-powered quiz generation (uses Groq API key from environment)
+        if (pathname === '/api/ai/quiz' && request.method === 'POST') {
+          const body = await request.json().catch(() => ({}));
+          const topic = body.topic || 'General knowledge';
+          const count = Math.max(1, Math.min(20, body.count || 5));
+
+          if (!env || !env.OPENAI_API_KEY) {
+            return jsonResponse({ error: 'AI key not configured. Set OPENAI_API_KEY via `wrangler secret put OPENAI_API_KEY`.' }, 400);
+          }
+
+          const systemPrompt = `You generate multiple-choice quiz questions. Return strict JSON: {"questions":[{"question":"...","options":["A","B","C","D"],"correct":"B"}]}. Provide exactly ${count} well-formed questions about ${topic}. Options should be concise and distinct. Use capital letters A-D for correct.`;
+
+          const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+            },
+            body: JSON.stringify({
+              model: 'llama-3.1-70b-versatile',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: topic }
+              ],
+              temperature: 0.7,
+              max_tokens: 1200
+            })
+          }).catch(() => null);
+
+          if (!aiResp) {
+            return jsonResponse({ error: 'Error contacting AI provider' }, 502);
+          }
+
+          const aiData = await aiResp.json().catch(() => null);
+          const raw = aiData?.choices?.[0]?.message?.content || '';
+
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed.questions) && parsed.questions.length) {
+              return jsonResponse({ questions: parsed.questions.slice(0, count) });
+            }
+          } catch (e) {
+            // fall through to fallback
+          }
+
+          // Fallback: synthesize simple questions if parsing failed
+          const fallback = Array.from({ length: count }).map((_, i) => {
+            return {
+              question: `Question ${i + 1} about ${topic}`,
+              options: [
+                `${topic} - correct answer`,
+                `${topic} - distractor 1`,
+                `${topic} - distractor 2`,
+                `${topic} - distractor 3`
+              ],
+              correct: 'A'
+            };
+          });
+
+          return jsonResponse({ questions: fallback });
+        }
+
         // GROQ proxy: proxies queries to Sanity's HTTP API using a secret token
         if (pathname === '/api/groq' && request.method === 'POST') {
           const body = await request.json().catch(() => ({}));
@@ -182,11 +267,23 @@ export default {
         }
 
       if (pathname.startsWith('/api/classes')) {
-        return handleCollection(request, pathname, 'classes');
+        return handleCollection(request, pathname, env.CLASSES);
       }
 
       if (pathname.startsWith('/api/quizzes')) {
-        return handleCollection(request, pathname, 'quizzes');
+        return handleCollection(request, pathname, env.QUIZZES);
+      }
+
+      if (pathname.startsWith('/api/students')) {
+        return handleCollection(request, pathname, env.STUDENTS);
+      }
+
+      if (pathname.startsWith('/api/teachers')) {
+        return handleCollection(request, pathname, env.TEACHERS);
+      }
+
+      if (pathname.startsWith('/api/enrollments')) {
+        return handleCollection(request, pathname, env.ENROLLMENTS);
       }
 
       return jsonResponse({ error: 'Not found' }, 404);
