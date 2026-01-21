@@ -108,14 +108,22 @@ async function handleCollection(request, pathname, kv) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Content-Type': 'application/json;charset=UTF-8'
+    };
 
+    // Handle CORS preflight
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } });
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
 
     try {
+      const url = new URL(request.url);
+      const pathname = url.pathname;
+
       if (pathname === '/' || pathname === '/health') {
         return jsonResponse({ ok: true, name: 'ec-eclassroom-backend' });
       }
@@ -444,7 +452,16 @@ Rules:
 
       return jsonResponse({ error: 'Not found' }, 404);
     } catch (err) {
-      return jsonResponse({ error: err.message }, 500);
+      console.error('Backend error:', err);
+      return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json;charset=UTF-8',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
     }
   }
 };
