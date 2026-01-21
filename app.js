@@ -4721,10 +4721,6 @@ function renderUnifiedProfileView() {
                   <span class="info-value">${profile.email || profile.googleEmail || 'Not provided'}</span>
                 </div>
                 <div class="info-row">
-                  <span class="info-label">User ID</span>
-                  <span class="info-value">${profile.id || 'Not set'}</span>
-                </div>
-                <div class="info-row">
                   <span class="info-label">School / Organization</span>
                   <span class="info-value">${profile.school || 'Not set'}</span>
                 </div>
@@ -4804,12 +4800,6 @@ function renderUnifiedProfileView() {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
               <div class="form-group">
-                <label for="profile-student-id" class="block font-semibold mb-sm">🆔 User ID</label>
-                <input id="profile-student-id" class="w-full p-md border-2 rounded-lg transition-colors"
-                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
-                       placeholder="Enter your ID" value="${profile.id || ''}">
-              </div>
-              <div class="form-group">
                 <label for="profile-school" class="block font-semibold mb-sm">🏫 School / Organization</label>
                 <input id="profile-school" class="w-full p-md border-2 rounded-lg transition-colors"
                        style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
@@ -4851,19 +4841,11 @@ function renderUnifiedProfileView() {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
-              <div class="form-group">
-                <label for="profile-phone" class="block font-semibold mb-sm">📞 Contact Number</label>
-                <input id="profile-phone" class="w-full p-md border-2 rounded-lg transition-colors"
-                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
-                       placeholder="Optional contact number" value="${profile.phone || ''}">
-              </div>
-              <div class="form-group">
-                <label for="profile-headline" class="block font-semibold mb-sm">💼 Headline</label>
-                <input id="profile-headline" class="w-full p-md border-2 rounded-lg transition-colors"
-                       style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
-                       placeholder="Student, Electronics Enthusiast" value="${profile.headline || ''}">
-              </div>
+            <div class="form-group">
+              <label for="profile-headline" class="block font-semibold mb-sm">💼 Headline</label>
+              <input id="profile-headline" class="w-full p-md border-2 rounded-lg transition-colors"
+                     style="border-color: var(--border); background: var(--card-bg); color: var(--text);"
+                     placeholder="Student, Electronics Enthusiast" value="${profile.headline || ''}">
             </div>
 
             <div class="form-group">
@@ -4955,11 +4937,9 @@ function persistUnifiedProfile(updates, { showToast = true, stayOnPage = true } 
 function saveUnifiedProfile() {
   const name = document.getElementById('profile-name')?.value?.trim();
   const email = document.getElementById('profile-email')?.value?.trim();
-  const id = document.getElementById('profile-student-id')?.value?.trim();
   const school = document.getElementById('profile-school')?.value?.trim();
   const yearLevel = document.getElementById('profile-year-level')?.value?.trim();
   const location = document.getElementById('profile-location')?.value?.trim();
-  const phone = document.getElementById('profile-phone')?.value?.trim();
   const headline = document.getElementById('profile-headline')?.value?.trim();
   const bio = document.getElementById('profile-bio')?.value?.trim();
 
@@ -4969,16 +4949,16 @@ function saveUnifiedProfile() {
   }
 
   const currentProfile = getUnifiedProfile();
+  const profileId = currentProfile.id || crypto.randomUUID();
 
   persistUnifiedProfile({
     ...currentProfile,
     name,
     email,
-    id: id || currentProfile.id || crypto.randomUUID(),
+    id: profileId,
     school,
     yearLevel,
     location,
-    phone,
     headline,
     bio
   });
