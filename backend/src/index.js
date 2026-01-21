@@ -60,6 +60,10 @@ function parseIdFromPath(pathname) {
 }
 
 async function handleCollection(request, pathname, kv) {
+  if (!kv) {
+    return jsonResponse({ error: 'KV namespace not available' }, 500);
+  }
+  
   const id = parseIdFromPath(pathname);
   
   if (request.method === 'GET') {
@@ -209,8 +213,17 @@ export default {
         const sessionPayload = encodeURIComponent(JSON.stringify({ id: appUser.id, name: appUser.name, email: appUser.email }));
         const sessionCookie = buildCookie('session_user', sessionPayload, { maxAge: 60 * 60 * 24 * 7 });
 
+        // Also set a non-HttpOnly cookie so JavaScript can read the auth status
+        const authFlagCookie = buildCookie('google_authenticated', 'true', { httpOnly: false, maxAge: 60 * 60 * 24 * 7 });
+
         const appOrigin = getAppOrigin(env);
-        return redirectResponse(appOrigin, { cookies: [sessionCookie, buildCookie('oauth_state', '', { maxAge: 0 })] });
+        const redirectUrl = new URL(appOrigin);
+        redirectUrl.searchParams.set('oauth_login', 'success');
+        redirectUrl.searchParams.set('user_id', appUser.id);
+        redirectUrl.searchParams.set('user_name', appUser.name);
+        redirectUrl.searchParams.set('user_email', appUser.email);
+        
+        return redirectResponse(redirectUrl.toString(), { cookies: [sessionCookie, authFlagCookie, buildCookie('oauth_state', '', { maxAge: 0 })] });
       }
 
         // AI-powered card generation (uses OpenAI key from environment)

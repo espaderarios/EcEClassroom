@@ -75,23 +75,42 @@ window.logoutUser = function () {
 };
 
 if (!getUser()) {
-  // Check for Google OAuth session cookie from Cloudflare Workers
-  const cookieStr = document.cookie;
-  const sessionMatch = cookieStr.match(/session_user=([^;]+)/);
-  
-  if (sessionMatch) {
-    try {
-      const sessionData = JSON.parse(decodeURIComponent(sessionMatch[1]));
+  // Check for OAuth login success from URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('oauth_login') && urlParams.get('oauth_login') === 'success') {
+    const userId = urlParams.get('user_id');
+    const userName = urlParams.get('user_name');
+    const userEmail = urlParams.get('user_email');
+    
+    if (userId) {
       setUser({
-        id: sessionData.id,
-        name: sessionData.name || sessionData.email,
-        email: sessionData.email,
+        id: userId,
+        name: userName || userEmail,
+        email: userEmail,
         provider: 'google',
         authenticated: true
       });
-    } catch (e) {
-      console.log('Failed to parse session cookie');
+      
+      // Clean up URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
+  }
+  
+  // Check for Google OAuth session cookie from Cloudflare Workers
+  const cookieStr = document.cookie;
+  const authFlagMatch = cookieStr.match(/google_authenticated=([^;]+)/);
+  
+  if (authFlagMatch && authFlagMatch[1] === 'true' && !getUser()) {
+    // Try to parse session_user cookie if available (though it's HttpOnly so won't work)
+    // Instead, we'll rely on the URL parameters set above
+    // If somehow we get here without URL params, create a placeholder
+    setUser({
+      id: 'google_user_' + Date.now(),
+      name: 'Google User',
+      email: '',
+      provider: 'google',
+      authenticated: true
+    });
   }
 }
 
