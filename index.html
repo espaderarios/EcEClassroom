@@ -93,94 +93,149 @@ window.logoutUser = function () {
   sessionStorage.removeItem("user");
 };
 
-if (!getUser()) {
-  // Check for OAuth login success from URL parameters
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has('oauth_login') && urlParams.get('oauth_login') === 'success') {
-    const userId = urlParams.get('user_id');
-    const userName = urlParams.get('user_name');
-    const userEmail = urlParams.get('user_email');
-    const googleId = urlParams.get('google_id');
-    const picture = urlParams.get('picture');
-    
-    if (userId) {
-      // Check if we're linking to an existing local account
-      const pendingLinkUserId = localStorage.getItem('pending_google_link_user');
-      
-      const googleUser = {
-        id: userId,
-        name: userName || userEmail,
-        email: userEmail,
-        googleId: googleId,
-        googleEmail: userEmail,
-        picture: picture || null,
-        provider: 'google',
-        authenticated: true
-      };
-      
-      if (pendingLinkUserId) {
-        // Link this Google account to existing local user
-        googleUser.linkedUserId = pendingLinkUserId;
-        
-        // Call backend to link accounts
-        fetch('https://ec-eclassroom-backend.espaderarios.workers.dev/auth/link-google', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ localUserId: pendingLinkUserId, googleUserId: userId })
-        }).catch(err => console.log('Link sync failed:', err));
-        
-        localStorage.removeItem('pending_google_link_user');
-      }
-      
-      setUser(googleUser);
-      
-      // Auto-populate student profile from Google account
-      const studentProfile = JSON.parse(localStorage.getItem('student_profile') || '{}');
-      const updatedStudentProfile = {
-        ...studentProfile,
-        name: userName || studentProfile.name || '',
-        email: userEmail || studentProfile.email || '',
-        googleId: googleId,
-        googleEmail: userEmail,
-        profilePictureUrl: picture || studentProfile.profilePictureUrl,
-        id: pendingLinkUserId || studentProfile.id || userId
-      };
-      localStorage.setItem('student_profile', JSON.stringify(updatedStudentProfile));
-      
-      // Auto-populate teacher profile from Google account
-      const teacherProfile = JSON.parse(localStorage.getItem('teacherProfile') || '{}');
-      const updatedTeacherProfile = {
-        ...teacherProfile,
-        name: userName || teacherProfile.name || '',
-        email: userEmail || teacherProfile.email || '',
-        googleId: googleId,
-        googleEmail: userEmail,
-        profilePictureUrl: picture || teacherProfile.profilePictureUrl,
-        id: pendingLinkUserId || teacherProfile.id || userId
-      };
-      localStorage.setItem('teacherProfile', JSON.stringify(updatedTeacherProfile));
-      
-      // Update currentStudent for backward compatibility
-      window.currentStudent = {
-        name: userName,
-        id: updatedStudentProfile.id,
-        email: userEmail
-      };
-      localStorage.setItem('currentStudent', JSON.stringify(window.currentStudent));
-      
-      // Clean up URL parameters
-      window.history.replaceState({}, document.title, window.location.pathname);
+function migrateLocalAccountData(oldId, newId) {
+  if (!oldId || !newId || oldId === newId) {
+    return;
+  }
+
+  const keysToUpdate = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key.includes(oldId)) {
+      keysToUpdate.push(key);
     }
   }
-  
-  // Check for Google OAuth session cookie from Cloudflare Workers
-  const cookieStr = document.cookie;
-  const authFlagMatch = cookieStr.match(/google_authenticated=([^;]+)/);
-  
-  if (authFlagMatch && authFlagMatch[1] === 'true' && !getUser()) {
-    // Try to parse session_user cookie if available (though it's HttpOnly so won't work)
-    // Instead, we'll rely on the URL parameters set above
-    // If somehow we get here without URL params, create a placeholder
+
+  keysToUpdate.forEach((originalKey) => {
+    const storedValue = localStorage.getItem(originalKey);
+    const migratedKey = originalKey.replace(oldId, newId);
+    if (storedValue === null || migratedKey === originalKey) {
+      return;
+    }
+    if (localStorage.getItem(migratedKey) === null) {
+      localStorage.setItem(migratedKey, storedValue);
+    }
+    localStorage.removeItem(originalKey);
+  });
+
+  const updateArrayEntries = (storageKey, fields) => {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      let changed = false;
+      parsed.forEach((item) => {
+        if (!item) return;
+        fields.forEach((field) => {
+          if (item[field] === oldId) {
+            item[field] = newId;
+            changed = true;
+          }
+        });
+      });
+      if (changed) {
+        localStorage.setItem(storageKey, JSON.stringify(parsed));
+      }
+    } catch (err) {
+      console.warn("Account migration skipped for", storageKey, err);
+    }
+  };
+
+  updateArrayEntries("teacher_classes", ["teacherId"]);
+  updateArrayEntries("student_enrolled_classes", ["studentId"]);
+  updateArrayEntries("class_quizzes", ["teacherId", "studentId"]);
+  updateArrayEntries("studentQuizScores", ["studentId"]);
+}
+const urlParams = new URLSearchParams(window.location.search);
+const oauthStatus = urlParams.get('oauth_login');
+
+if (oauthStatus === 'success') {
+  const userId = urlParams.get('user_id');
+  const userName = urlParams.get('user_name');
+  const userEmail = urlParams.get('user_email');
+  const googleId = urlParams.get('google_id');
+  const picture = urlParams.get('picture');
+
+  if (userId) {
+    const pendingLinkUserId = localStorage.getItem('pending_google_link_user');
+
+    if (pendingLinkUserId && pendingLinkUserId !== userId) {
+      migrateLocalAccountData(pendingLinkUserId, userId);
+    }
+
+    const googleUser = {
+      id: userId,
+      name: userName || userEmail,
+      email: userEmail,
+      googleId: googleId || userId,
+      googleEmail: userEmail,
+      picture: picture || null,
+      provider: 'google',
+      authenticated: true
+    };
+
+    if (pendingLinkUserId) {
+      googleUser.linkedUserId = pendingLinkUserId;
+
+      fetch('https://ec-eclassroom-backend.espaderarios.workers.dev/auth/link-google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ localUserId: pendingLinkUserId, googleUserId: userId })
+      }).catch(err => console.log('Link sync failed:', err));
+
+      localStorage.removeItem('pending_google_link_user');
+    }
+
+    setUser(googleUser);
+
+    const studentProfile = JSON.parse(localStorage.getItem('student_profile') || '{}');
+    const updatedStudentProfile = {
+      ...studentProfile,
+      name: userName || studentProfile.name || '',
+      email: userEmail || studentProfile.email || '',
+      googleId: googleId || userId,
+      googleEmail: userEmail,
+      profilePictureUrl: picture || studentProfile.profilePictureUrl,
+      id: userId
+    };
+    localStorage.setItem('student_profile', JSON.stringify(updatedStudentProfile));
+
+    const teacherProfile = JSON.parse(localStorage.getItem('teacherProfile') || '{}');
+    const updatedTeacherProfile = {
+      ...teacherProfile,
+      name: userName || teacherProfile.name || '',
+      email: userEmail || teacherProfile.email || '',
+      googleId: googleId || userId,
+      googleEmail: userEmail,
+      profilePictureUrl: picture || teacherProfile.profilePictureUrl,
+      id: userId
+    };
+    localStorage.setItem('teacherProfile', JSON.stringify(updatedTeacherProfile));
+
+    window.currentStudent = {
+      name: userName || updatedStudentProfile.name || '',
+      id: userId,
+      email: userEmail
+    };
+    localStorage.setItem('currentStudent', JSON.stringify(window.currentStudent));
+
+    window.currentTeacher = {
+      name: userName || updatedTeacherProfile.name || '',
+      id: userId,
+      email: userEmail
+    };
+    localStorage.setItem('currentTeacherId', userId);
+
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+}
+
+if (!getUser()) {
+  const authFlagMatch = document.cookie.match(/google_authenticated=([^;]+)/);
+
+  if (authFlagMatch && authFlagMatch[1] === 'true') {
     setUser({
       id: 'google_user_' + Date.now(),
       name: 'Google User',
