@@ -630,10 +630,12 @@ export default {
               const cards = parsed.cards.map((c, i) => {
                 const questionRaw = typeof c.question === 'string' ? c.question.trim() : typeof c.front === 'string' ? c.front.trim() : '';
                 const answerRaw = typeof c.answer === 'string' ? c.answer.trim() : typeof c.back === 'string' ? c.back.trim() : '';
+                const questionClean = questionRaw && questionRaw.toLowerCase() !== 'undefined' ? questionRaw : '';
+                const answerClean = answerRaw && answerRaw.toLowerCase() !== 'undefined' ? answerRaw : '';
                 return {
                   id: c.id || `card_${Date.now()}_${i}`,
-                  question: questionRaw || `Question ${i + 1} about ${topic || 'the subject'}`,
-                  answer: answerRaw || `Key facts about ${topic || 'the subject'}.`
+                  question: questionClean || `Question ${i + 1} about ${topic || 'the subject'}`,
+                  answer: answerClean || `Key facts about ${topic || 'the subject'}.`
                 };
               });
               return jsonResponse({ cards }, 200, origin);
