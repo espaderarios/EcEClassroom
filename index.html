@@ -256,6 +256,7 @@ window.isAuthenticated = getUser()?.authenticated === true;
 
   var handler = null;
   var data = [];
+  var isSyncing = false;
 
   function load() {
     try {
@@ -276,6 +277,41 @@ window.isAuthenticated = getUser()?.authenticated === true;
     }
   }
 
+  async function syncToBackend(item, method = 'POST') {
+    const user = getUser();
+    if (!user || !user.authenticated) return;
+    
+    try {
+      const backendUrl = 'https://ec-eclassroom-backend.espaderarios.workers.dev';
+      const endpoint = method === 'DELETE' ? `${backendUrl}/api/flashcards/${item.id}` : `${backendUrl}/api/flashcards`;
+      
+      await fetch(endpoint, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: method !== 'DELETE' ? JSON.stringify({ ...item, userId: user.id }) : undefined
+      });
+    } catch (error) {
+      console.log('Backend sync failed:', error);
+    }
+  }
+
+  async function loadFromBackend() {
+    const user = getUser();
+    if (!user || !user.authenticated) return [];
+    
+    try {
+      const backendUrl = 'https://ec-eclassroom-backend.espaderarios.workers.dev';
+      const response = await fetch(`${backendUrl}/api/flashcards`);
+      if (!response.ok) return [];
+      
+      const items = await response.json();
+      return Array.isArray(items) ? items.filter(item => item.userId === user.id) : [];
+    } catch (error) {
+      console.log('Failed to load from backend:', error);
+      return [];
+    }
+  }
+
   function generateId() {
     return (
       "id_" +
@@ -286,14 +322,48 @@ window.isAuthenticated = getUser()?.authenticated === true;
   }
 
   window.dataSdk = {
-    init: function (h) {
+    init: async function (h) {
       handler = h;
       load();
+      
+      // Sync with backend if authenticated
+      const user = getUser();
+      if (user && user.authenticated && !isSyncing) {
+        isSyncing = true;
+        try {
+          const backendData = await loadFromBackend();
+          
+          // Merge backend data with local data (backend takes precedence for conflicts)
+          const localIds = new Set(data.map(d => d.id));
+          const backendIds = new Set(backendData.map(d => d.id));
+          
+          // Add items from backend that don't exist locally
+          backendData.forEach(item => {
+            if (!localIds.has(item.id)) {
+              data.push(item);
+            }
+          });
+          
+          // Upload local items that don't exist on backend
+          for (const item of data) {
+            if (!backendIds.has(item.id)) {
+              await syncToBackend(item, 'POST');
+            }
+          }
+          
+          save();
+        } catch (error) {
+          console.log('Initial sync failed:', error);
+        } finally {
+          isSyncing = false;
+        }
+      }
+      
       notify();
       return Promise.resolve({ isOk: true });
     },
 
-    create: function (item) {
+    create: async function (item) {
       var newItem = Object.assign({}, item, {
         id: generateId()
       });
@@ -301,23 +371,32 @@ window.isAuthenticated = getUser()?.authenticated === true;
       data.push(newItem);
       save();
       notify();
+      
+      // Sync to backend asynchronously
+      syncToBackend(newItem, 'POST').catch(err => console.log('Create sync failed:', err));
 
       return Promise.resolve({ isOk: true, item: newItem });
     },
 
-    delete: function (opts, silent) {
+    delete: async function (opts, silent) {
       if (!opts || !opts.id) {
         return Promise.resolve({ isOk: false });
       }
 
+      const deletedItem = data.find(d => d.id === opts.id);
       data = data.filter(d => d.id !== opts.id);
       save();
       if (!silent) notify();
+      
+      // Sync deletion to backend asynchronously
+      if (deletedItem) {
+        syncToBackend(deletedItem, 'DELETE').catch(err => console.log('Delete sync failed:', err));
+      }
 
       return Promise.resolve({ isOk: true });
     },
 
-    update: function (updatedItem) {
+    update: async function (updatedItem) {
       if (!updatedItem || !updatedItem.id) {
         return Promise.resolve({ isOk: false });
       }
@@ -328,6 +407,9 @@ window.isAuthenticated = getUser()?.authenticated === true;
 
       save();
       notify();
+      
+      // Sync update to backend asynchronously (using PUT)
+      syncToBackend(updatedItem, 'PUT').catch(err => console.log('Update sync failed:', err));
 
       return Promise.resolve({ isOk: true });
     },

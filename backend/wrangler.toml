@@ -32,6 +32,11 @@ binding = "ENROLLMENTS"
 id = "1bb9984865d74c42bac2bc3c401a65c3"
 preview_id = "d1de597873ed4546bce3444607f22309"
 
+[[kv_namespaces]]
+binding = "FLASHCARDS"
+id = "abcb5d3b89fa4284a769ea6f3e92a8f8"
+preview_id = "e06e114064954585bd27fdc4d53c597e"
+
 # To enable the OpenAI-powered AI endpoint, add your secret with:
 #
 #   cd backend

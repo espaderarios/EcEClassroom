@@ -543,6 +543,10 @@ Rules:
         return handleCollection(request, pathname, env.QUIZZES, origin);
       }
 
+      if (pathname.startsWith('/api/flashcards')) {
+        return handleCollection(request, pathname, env.FLASHCARDS, origin);
+      }
+
       return jsonResponse({ error: 'Not found' }, 404, origin);
     } catch (err) {
       console.error('Backend error:', err);
