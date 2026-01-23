@@ -614,17 +614,28 @@ export default {
           }
 
           const aiData = await aiResp.json().catch(() => null);
-          const text = aiData?.choices?.[0]?.message?.content || '';
+          let text = aiData?.choices?.[0]?.message?.content || '';
+
+          if (text.includes('```')) {
+            const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+            if (fenced && fenced[1]) {
+              text = fenced[1];
+            }
+          }
 
           try {
             // Try to parse model output as JSON
             const parsed = JSON.parse(text);
             if (Array.isArray(parsed.cards)) {
-              const cards = parsed.cards.map((c, i) => ({
-                id: c.id || `card_${Date.now()}_${i}`,
-                question: c.question || c.front || '',
-                answer: c.answer || c.back || ''
-              }));
+              const cards = parsed.cards.map((c, i) => {
+                const questionRaw = typeof c.question === 'string' ? c.question.trim() : typeof c.front === 'string' ? c.front.trim() : '';
+                const answerRaw = typeof c.answer === 'string' ? c.answer.trim() : typeof c.back === 'string' ? c.back.trim() : '';
+                return {
+                  id: c.id || `card_${Date.now()}_${i}`,
+                  question: questionRaw || `Question ${i + 1} about ${topic || 'the subject'}`,
+                  answer: answerRaw || `Key facts about ${topic || 'the subject'}.`
+                };
+              });
               return jsonResponse({ cards }, 200, origin);
             }
           } catch (e) {
@@ -636,14 +647,14 @@ export default {
           }
 
           // Fallback: simple extraction if AI response isn't JSON
-          const lines = text.split(/\r?\n/).filter(Boolean);
+          const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
           const cards = [];
-          for (let i = 0; i < Math.max(count, lines.length); i++) {
-            const l = lines[i] || `Card ${i + 1}`;
+          for (let i = 0; i < Math.max(count, lines.length || 1); i++) {
+            const l = lines[i] && lines[i].toLowerCase() !== 'undefined' ? lines[i] : '';
             cards.push({
               id: `card_${Date.now()}_${i}`,
-              question: l.slice(0, 120),
-              answer: l.slice(0, 240)
+              question: l || `Question ${i + 1} about ${topic || 'the subject'}`,
+              answer: l ? `Answer: ${l}` : `Key facts about ${topic || 'the subject'}.`
             });
           }
           return jsonResponse({ cards }, 200, origin);
@@ -694,8 +705,14 @@ Rules:
           }
 
           const aiData = await aiResp.json().catch(() => null);
-          
-          const raw = aiData?.choices?.[0]?.message?.content || '';
+
+          let raw = aiData?.choices?.[0]?.message?.content || '';
+          if (raw.includes('```')) {
+            const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+            if (fenced && fenced[1]) {
+              raw = fenced[1];
+            }
+          }
 
           try {
             const parsed = JSON.parse(raw);
