@@ -61,7 +61,7 @@ function buildCookie(name, value, { httpOnly = true, secure = true, path = '/', 
 }
 
 function getAppOrigin(env) {
-  return env.APP_ORIGIN || 'http://127.0.0.1:5500';
+  return env.APP_ORIGIN || 'https://classrio.me';
 }
 
 function parseIdFromPath(pathname) {

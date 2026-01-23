@@ -204,7 +204,7 @@ app.get('/auth/google/start', (req, res) => {
 app.get('/auth/google/callback', async (req, res) => {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const appOrigin = process.env.APP_ORIGIN || 'http://127.0.0.1:5500';
+  const appOrigin = process.env.APP_ORIGIN || 'https://classrio.me';
   
   if (!clientId || !clientSecret) {
     return res.status(500).json({ error: 'Google OAuth not configured' });

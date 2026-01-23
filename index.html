@@ -87,6 +87,11 @@ window.setUser = function (user) {
   const json = JSON.stringify(user);
   localStorage.setItem("user", json);
   sessionStorage.setItem("user", json);
+  try {
+    localStorage.setItem('eceIntroSeen', 'true');
+  } catch (err) {
+    console.warn('Unable to persist intro state from setUser', err);
+  }
 };
 
 window.logoutUser = function () {
