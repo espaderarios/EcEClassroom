@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Classrio</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, sans-serif;
+      background: linear-gradient(180deg, #e2e8f0 0%, #f8fafc 100%);
+      color: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+    }
+    .info-container {
+      max-width: 720px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      border-radius: 24px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16);
+      padding: 48px;
+    }
+    .info-title {
+      margin: 0 0 16px;
+      font-size: 2.5rem;
+      font-weight: 600;
+    }
+    .info-subtitle {
+      margin: 0 0 24px;
+      font-size: 1.125rem;
+      color: #475569;
+    }
+    .info-section {
+      margin-bottom: 32px;
+    }
+    .info-section h2 {
+      margin: 0 0 12px;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1d4ed8;
+    }
+    .cta-group {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .visit-link,
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .visit-link {
+      background: #0f172a;
+      color: #f8fafc;
+    }
+    .visit-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
+    }
+    .back-link {
+      background: #1d4ed8;
+      color: #ffffff;
+      text-decoration: none;
+    }
+    .back-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(29, 78, 216, 0.25);
+    }
+  </style>
+</head>
+<body>
+  <main class="info-container">
+    <h1 class="info-title">Discover Classrio</h1>
+    <p class="info-subtitle">Classrio helps students retain knowledge with collaborative flashcards while giving teachers the tools to organize lessons, track progress, and share resources securely.</p>
+
+    <section class="info-section">
+      <h2>Why Classrio?</h2>
+      <p>Designed for blended classrooms, Classrio makes it effortless to build engaging study decks, synchronize content across devices, and keep learners motivated through interactive assessments.</p>
+    </section>
+
+    <section class="info-section">
+      <h2>Key Features</h2>
+      <ul>
+        <li>Dynamic flashcards with multimedia support</li>
+        <li>Teacher-managed classes and assignments</li>
+        <li>Community library for curated study sets</li>
+        <li>Secure publishing with owner controls</li>
+      </ul>
+    </section>
+
+    <section class="info-section">
+      <h2>Ready to Explore?</h2>
+      <p>Create your account, import existing decks, or start fresh with AI-assisted generation. Classrio is built to scale with your classroom.</p>
+    </section>
+
+    <div class="cta-group">
+      <a class="visit-link" href="https://classrio.me" target="_blank" rel="noopener">Visit classrio.me</a>
+      <a class="back-link" href="https://classrio.me">&#8592; Back to App</a>
+    </div>
+  </main>
+</body>
+</html>
