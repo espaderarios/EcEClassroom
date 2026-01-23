@@ -27,7 +27,8 @@
   
   <!-- Stylesheets -->
   <link rel="stylesheet" href="styles.css">
-  
+  <link rel="stylesheet" href="https://s.pageclip.co/v1/pageclip.css" media="screen">
+
   <title>EcEClassroom - Learning Management Platform</title>
 <script>
 (function () {
@@ -551,7 +552,23 @@ if ('serviceWorker' in navigator) {
       </button>
     </div>
   </div>
-
+<form action="https://send.pageclip.co/HBJItoPA0jYXuN1sZXTFFfJk5T9ZVAxd" class="pageclip-form contact-form" method="post" data-pageclip-reset="true">
+  <div class="form-field">
+    <label for="contact-name">Name</label>
+    <input id="contact-name" type="text" name="name" placeholder="Your name" required />
+  </div>
+  <div class="form-field">
+    <label for="contact-email">Email</label>
+    <input id="contact-email" type="email" name="email" placeholder="you@example.com" required />
+  </div>
+  <div class="form-field">
+    <label for="contact-message">Message</label>
+    <textarea id="contact-message" name="message" rows="4" placeholder="How can we help?" required></textarea>
+  </div>
+  <button type="submit" class="pageclip-form__submit">
+    <span>Send</span>
+  </button>
+</form>
   <!-- Scripts -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
@@ -634,6 +651,6 @@ if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./service-worker.js');
     }
   </script>
-
+<script src="https://s.pageclip.co/v1/pageclip.js" charset="utf-8"></script>
  </body>
  </html>

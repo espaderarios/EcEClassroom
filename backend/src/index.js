@@ -126,6 +126,249 @@ async function handleCollection(request, pathname, kv, origin = '*') {
   }
 }
 
+function buildLibrarySetKey(id) {
+  return `library:set:${id}`;
+}
+
+function buildPublicOwnerKey(ownerId, ownerName) {
+  const safeId = ownerId || ownerName || 'anonymous';
+  return `public:${safeId}`;
+}
+
+function sanitizeLibrarySet(set, cards) {
+  const cardList = Array.isArray(cards) ? cards : [];
+  const sanitizedCards = cardList
+    .map((card, index) => {
+      if (!card) return null;
+      const question = typeof card.question === 'string' ? card.question.trim() : '';
+      const answer = typeof card.answer === 'string' ? card.answer.trim() : '';
+      if (!question || !answer) return null;
+      return {
+        card_id: card.remote_card_id || card.card_id || card.id || `${Date.now()}_${index}`,
+        question,
+        answer,
+        owner_id: card.owner_id || set.owner_id || '',
+        owner_name: card.owner_name || set.owner_name || '',
+        owner_email: card.owner_email || set.owner_email || '',
+        owner_avatar: card.owner_avatar || set.owner_avatar || '',
+        visibility: 'public'
+      };
+    })
+    .filter(Boolean);
+
+  const remoteSetId = set.remote_set_id || set.library_set_id || set.set_id || set.id || crypto.randomUUID();
+  const ownerKey = buildPublicOwnerKey(set.owner_id, set.owner_name);
+
+  return {
+    remote_set_id: remoteSetId,
+    set_id: remoteSetId,
+    set_name: set.set_name || set.name || 'Untitled set',
+    subject_name: set.subject_name || set.subject || '',
+    subject_icon: set.subject_icon || null,
+    subject_id: set.subject_id || null,
+    description: set.description || set.summary || '',
+    tags: Array.isArray(set.tags) ? set.tags : [],
+    owner_id: set.owner_id || '',
+    owner_name: set.owner_name || set.owner || 'Community Creator',
+    owner_email: set.owner_email || '',
+    owner_avatar: set.owner_avatar || '',
+    owner_key: ownerKey,
+    visibility: 'public',
+    card_count: sanitizedCards.length,
+    cards: sanitizedCards,
+    updated_at: new Date().toISOString(),
+    source: 'community'
+  };
+}
+
+function evaluateLibraryMatch(librarySet, term) {
+  const needle = term.trim().toLowerCase();
+  if (!needle) {
+    return { matches: true, summary: '' };
+  }
+
+  const contains = value => (value || '').toLowerCase().includes(needle);
+
+  if (contains(librarySet.set_name)) {
+    return { matches: true, summary: 'Matches set title.' };
+  }
+  if (contains(librarySet.subject_name)) {
+    return { matches: true, summary: `Matches subject ${librarySet.subject_name}.` };
+  }
+  if (contains(librarySet.owner_name)) {
+    return { matches: true, summary: 'Matches creator name.' };
+  }
+  if (contains(librarySet.description)) {
+    return { matches: true, summary: 'Matches description.' };
+  }
+  if (Array.isArray(librarySet.tags) && librarySet.tags.some(tag => contains(tag))) {
+    return { matches: true, summary: 'Matches tag.' };
+  }
+  if (Array.isArray(librarySet.cards)) {
+    for (const card of librarySet.cards) {
+      if (contains(card.question)) {
+        return { matches: true, summary: 'Matches question text.' };
+      }
+      if (contains(card.answer)) {
+        return { matches: true, summary: 'Matches answer text.' };
+      }
+    }
+  }
+
+  return { matches: false, summary: '' };
+}
+
+async function getAllPublishedSets(kv) {
+  const list = await kv.list({ prefix: 'library:set:' });
+  const results = [];
+  for (const entry of list.keys) {
+    const item = await kvGet(kv, entry.name);
+    if (item && item.visibility === 'public') {
+      results.push(item);
+    }
+  }
+  return results;
+}
+
+function buildLibrarySearchResponse(sets, ownerFilter, term) {
+  const usersMap = new Map();
+  const normalizedSets = [];
+
+  sets.forEach(set => {
+    if (ownerFilter && set.owner_key !== ownerFilter) {
+      return;
+    }
+
+    const { matches, summary } = evaluateLibraryMatch(set, term);
+    if (!matches) {
+      return;
+    }
+
+    const previewCards = Array.isArray(set.cards) ? set.cards.slice(0, 5) : [];
+
+    normalizedSets.push({
+      source: 'public',
+      remote_set_id: set.remote_set_id,
+      set_id: set.remote_set_id,
+      set_name: set.set_name,
+      subject_name: set.subject_name,
+      subject_icon: set.subject_icon,
+      owner_id: set.owner_id,
+      owner_name: set.owner_name,
+      owner_email: set.owner_email,
+      owner_avatar: set.owner_avatar,
+      owner_key: set.owner_key,
+      visibility: set.visibility,
+      description: set.description,
+      tags: set.tags,
+      card_count: set.card_count,
+      matchSummary: summary,
+      updated_at: set.updated_at,
+      cards: previewCards
+    });
+
+    if (!usersMap.has(set.owner_key)) {
+      usersMap.set(set.owner_key, {
+        owner_key: set.owner_key,
+        id: set.owner_id || set.owner_key,
+        name: set.owner_name,
+        email: set.owner_email,
+        avatar: set.owner_avatar,
+        source: 'public',
+        setCount: 1
+      });
+    } else {
+      const userEntry = usersMap.get(set.owner_key);
+      userEntry.setCount += 1;
+    }
+  });
+
+  return {
+    users: Array.from(usersMap.values()),
+    sets: normalizedSets
+  };
+}
+
+async function handleLibraryEndpoint(request, url, env, origin = '*') {
+  if (!env || !env.FLASHCARDS) {
+    return jsonResponse({ error: 'Library storage is not configured' }, 500, origin);
+  }
+
+  const pathname = url.pathname;
+
+  if (pathname === '/api/library/publish' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const setPayload = body.set || body;
+    const cardsPayload = Array.isArray(body.cards) ? body.cards : [];
+
+    if (!setPayload || typeof setPayload !== 'object') {
+      return jsonResponse({ error: 'Missing set payload' }, 400, origin);
+    }
+
+    const sanitized = sanitizeLibrarySet(setPayload, cardsPayload);
+    await kvPut(env.FLASHCARDS, buildLibrarySetKey(sanitized.remote_set_id), sanitized);
+
+    return jsonResponse({ ok: true, remote_set_id: sanitized.remote_set_id, set: sanitized, owner_key: sanitized.owner_key }, 200, origin);
+  }
+
+  if (pathname === '/api/library/search' && request.method === 'GET') {
+    const query = url.searchParams.get('query') || url.searchParams.get('q') || '';
+    const ownerFilter = url.searchParams.get('ownerKey') || url.searchParams.get('owner') || '';
+    const term = query.trim();
+
+    if (term.length < 2 && !ownerFilter) {
+      return jsonResponse({ users: [], sets: [] }, 200, origin);
+    }
+
+    const allSets = await getAllPublishedSets(env.FLASHCARDS);
+    const response = buildLibrarySearchResponse(allSets, ownerFilter || null, term);
+    return jsonResponse(response, 200, origin);
+  }
+
+  if (pathname.startsWith('/api/library/sets/')) {
+    const remoteId = decodeURIComponent(pathname.split('/').pop() || '');
+    if (!remoteId) {
+      return jsonResponse({ error: 'Missing set identifier' }, 400, origin);
+    }
+
+    if (request.method === 'GET') {
+      const stored = await kvGet(env.FLASHCARDS, buildLibrarySetKey(remoteId));
+      if (!stored) {
+        return jsonResponse({ error: 'Not found' }, 404, origin);
+      }
+      return jsonResponse({ set: stored, cards: stored.cards || [] }, 200, origin);
+    }
+
+    if (request.method === 'DELETE') {
+      await kvDelete(env.FLASHCARDS, buildLibrarySetKey(remoteId));
+      return jsonResponse({ ok: true }, 200, origin);
+    }
+
+    if (request.method === 'PUT' || request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const setPayload = body.set || body;
+      const cardsPayload = Array.isArray(body.cards) ? body.cards : [];
+      const sanitized = sanitizeLibrarySet({ ...setPayload, remote_set_id: remoteId }, cardsPayload);
+      await kvPut(env.FLASHCARDS, buildLibrarySetKey(sanitized.remote_set_id), sanitized);
+      return jsonResponse({ ok: true, remote_set_id: sanitized.remote_set_id, set: sanitized, owner_key: sanitized.owner_key }, 200, origin);
+    }
+
+    return jsonResponse({ error: 'Method not allowed' }, 405, origin);
+  }
+
+  if (pathname === '/api/library/unpublish' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const remoteId = body.remote_set_id || body.remoteSetId || body.id;
+    if (!remoteId) {
+      return jsonResponse({ error: 'Missing remote_set_id' }, 400, origin);
+    }
+    await kvDelete(env.FLASHCARDS, buildLibrarySetKey(remoteId));
+    return jsonResponse({ ok: true }, 200, origin);
+  }
+
+  return jsonResponse({ error: 'Not found' }, 404, origin);
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('origin') || '*';
@@ -541,6 +784,10 @@ Rules:
 
       if (pathname.startsWith('/api/attempts')) {
         return handleCollection(request, pathname, env.QUIZZES, origin);
+      }
+
+      if (pathname.startsWith('/api/library')) {
+        return handleLibraryEndpoint(request, url, env, origin);
       }
 
       if (pathname.startsWith('/api/flashcards')) {
