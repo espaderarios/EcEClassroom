@@ -158,12 +158,19 @@ function sanitizeLibrarySet(set, cards) {
 
   const remoteSetId = set.remote_set_id || set.library_set_id || set.set_id || set.id || crypto.randomUUID();
   const ownerKey = buildPublicOwnerKey(set.owner_id, set.owner_name);
+  const topic =
+    typeof set.topic === 'string' && set.topic.trim()
+      ? set.topic.trim()
+      : typeof set.set_topic === 'string' && set.set_topic.trim()
+        ? set.set_topic.trim()
+        : '';
 
   return {
     remote_set_id: remoteSetId,
     set_id: remoteSetId,
     set_name: set.set_name || set.name || 'Untitled set',
     subject_name: set.subject_name || set.subject || '',
+    topic,
     subject_icon: set.subject_icon || null,
     subject_id: set.subject_id || null,
     description: set.description || set.summary || '',
@@ -191,6 +198,9 @@ function evaluateLibraryMatch(librarySet, term) {
 
   if (contains(librarySet.set_name)) {
     return { matches: true, summary: 'Matches set title.' };
+  }
+  if (contains(librarySet.topic)) {
+    return { matches: true, summary: 'Matches topic metadata.' };
   }
   if (contains(librarySet.subject_name)) {
     return { matches: true, summary: `Matches subject ${librarySet.subject_name}.` };
@@ -252,6 +262,7 @@ function buildLibrarySearchResponse(sets, ownerFilter, term) {
       set_id: set.remote_set_id,
       set_name: set.set_name,
       subject_name: set.subject_name,
+      topic: set.topic || '',
       subject_icon: set.subject_icon,
       owner_id: set.owner_id,
       owner_name: set.owner_name,
