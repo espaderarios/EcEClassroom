@@ -579,42 +579,42 @@ export default {
         return jsonResponse({ user }, 200, origin);
       }
 
-        // AI-powered card generation (uses OpenAI key from environment)
+        // AI-powered card generation (uses Groq API key from environment)
         if (pathname === '/api/ai/generate' && request.method === 'POST') {
           const body = await request.json().catch(() => ({}));
           const topic = body.topic || '';
           const prompt = body.prompt || body.text || (topic ? `Create flashcard Q&A pairs about ${topic}.` : 'Create flashcard Q&A pairs from this text.');
           const count = body.count || 5;
 
-          if (!env || !env.GOOGLE_GENAI_API_KEY) {
-            return jsonResponse({ error: 'AI key not configured. Set GOOGLE_GENAI_API_KEY via `wrangler secret put GOOGLE_GENAI_API_KEY`.' }, 400, origin);
+          if (!env || !env.GROQ_API_KEY) {
+            return jsonResponse({ error: 'AI key not configured. Set GROQ_API_KEY via `wrangler secret put GROQ_API_KEY`.' }, 400, origin);
           }
 
           const system = `You are a helpful assistant that converts study material into flashcards. Reply with valid JSON only: {"cards": [{"question":"Question text","answer":"Answer text"}]}. Create ${count} concise cards covering distinct points.`;
 
-          const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${env.GOOGLE_GENAI_API_KEY}`, {
+          const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-              contents: [
-                { role: 'system', parts: [{ text: system }] },
-                { role: 'user', parts: [{ text: prompt }] }
+              model: 'llama-3.3-70b-versatile',
+              messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: prompt }
               ],
-              generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 800
-              }
+              temperature: 0.7,
+              max_tokens: 800
             })
-          }).catch(err => null);
+          }).catch(() => null);
 
           if (!aiResp) {
             return jsonResponse({ error: 'Error contacting AI provider' }, 502, origin);
           }
 
           const aiData = await aiResp.json().catch(() => null);
-          const text = aiData?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('\n') || '';
+          const text = aiData?.choices?.[0]?.message?.content || '';
 
           try {
             // Try to parse model output as JSON
@@ -655,8 +655,8 @@ export default {
           const topic = body.topic || 'General knowledge';
           const count = Math.max(1, Math.min(20, body.count || 5));
 
-          if (!env || !env.GOOGLE_GENAI_API_KEY) {
-            return jsonResponse({ error: 'AI key not configured. Set GOOGLE_GENAI_API_KEY via `wrangler secret put GOOGLE_GENAI_API_KEY`.' }, 400, origin);
+          if (!env || !env.GROQ_API_KEY) {
+            return jsonResponse({ error: 'AI key not configured. Set GROQ_API_KEY via `wrangler secret put GROQ_API_KEY`.' }, 400, origin);
           }
 
           const systemPrompt = `You are a quiz generator. Generate multiple-choice quiz questions in strict JSON format.
@@ -672,20 +672,20 @@ Rules:
 - Options must be concise, distinct, and accurate
 - Return ONLY valid JSON, no other text`;
 
-          const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${env.GOOGLE_GENAI_API_KEY}`, {
+          const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-              contents: [
-                { role: 'system', parts: [{ text: systemPrompt }] },
-                { role: 'user', parts: [{ text: topic }] }
+              model: 'llama-3.3-70b-versatile',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: topic }
               ],
-              generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 1200
-              }
+              temperature: 0.7,
+              max_tokens: 1200
             })
           }).catch(() => null);
 
@@ -695,7 +695,7 @@ Rules:
 
           const aiData = await aiResp.json().catch(() => null);
           
-          const raw = aiData?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('\n') || '';
+          const raw = aiData?.choices?.[0]?.message?.content || '';
 
           try {
             const parsed = JSON.parse(raw);
