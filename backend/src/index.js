@@ -582,50 +582,57 @@ export default {
         // AI-powered card generation (uses OpenAI key from environment)
         if (pathname === '/api/ai/generate' && request.method === 'POST') {
           const body = await request.json().catch(() => ({}));
-          const prompt = body.prompt || body.text || 'Create flashcard Q&A pairs from this text.';
+          const topic = body.topic || '';
+          const prompt = body.prompt || body.text || (topic ? `Create flashcard Q&A pairs about ${topic}.` : 'Create flashcard Q&A pairs from this text.');
           const count = body.count || 5;
 
-          if (!env || !env.OPENAI_API_KEY) {
-            return jsonResponse({ error: 'AI key not configured. Set OPENAI_API_KEY via `wrangler secret put OPENAI_API_KEY`.' }, 400, origin);
+          if (!env || !env.GOOGLE_GENAI_API_KEY) {
+            return jsonResponse({ error: 'AI key not configured. Set GOOGLE_GENAI_API_KEY via `wrangler secret put GOOGLE_GENAI_API_KEY`.' }, 400, origin);
           }
 
-          // Ask the model to produce JSON with an array of cards
-          const system = `You are a helpful assistant that converts input text into flashcards. Reply with valid JSON of the form {"cards": [{"front":"...","back":"..."}, ...]}. Produce exactly ${count} cards when possible.`;
+          const system = `You are a helpful assistant that converts study material into flashcards. Reply with valid JSON only: {"cards": [{"question":"Question text","answer":"Answer text"}]}. Create ${count} concise cards covering distinct points.`;
 
-          const openaiResp = await fetch('https://api.openai.com/v1/chat/completions', {
+          const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${env.GOOGLE_GENAI_API_KEY}`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              model: 'gpt-3.5-turbo',
-              messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt }
+              contents: [
+                { role: 'system', parts: [{ text: system }] },
+                { role: 'user', parts: [{ text: prompt }] }
               ],
-              max_tokens: 800,
-              temperature: 0.7
+              generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 800
+              }
             })
           }).catch(err => null);
 
-          if (!openaiResp) {
+          if (!aiResp) {
             return jsonResponse({ error: 'Error contacting AI provider' }, 502, origin);
           }
 
-          const openaiData = await openaiResp.json().catch(() => null);
-          const text = openaiData?.choices?.[0]?.message?.content || '';
+          const aiData = await aiResp.json().catch(() => null);
+          const text = aiData?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('\n') || '';
 
           try {
             // Try to parse model output as JSON
             const parsed = JSON.parse(text);
             if (Array.isArray(parsed.cards)) {
-              // ensure ids
-              const cards = parsed.cards.map((c, i) => ({ id: c.id || `card_${Date.now()}_${i}`, front: c.front || '', back: c.back || '' }));
+              const cards = parsed.cards.map((c, i) => ({
+                id: c.id || `card_${Date.now()}_${i}`,
+                question: c.question || c.front || '',
+                answer: c.answer || c.back || ''
+              }));
               return jsonResponse({ cards }, 200, origin);
             }
           } catch (e) {
             // fallthrough to fallback generator below
+          }
+
+          if (aiData?.error) {
+            return jsonResponse({ error: `AI API error: ${aiData.error.message || JSON.stringify(aiData.error)}` }, 500, origin);
           }
 
           // Fallback: simple extraction if AI response isn't JSON
@@ -633,7 +640,11 @@ export default {
           const cards = [];
           for (let i = 0; i < Math.max(count, lines.length); i++) {
             const l = lines[i] || `Card ${i + 1}`;
-            cards.push({ id: `card_${Date.now()}_${i}`, front: l.slice(0, 120), back: l.slice(0, 240) });
+            cards.push({
+              id: `card_${Date.now()}_${i}`,
+              question: l.slice(0, 120),
+              answer: l.slice(0, 240)
+            });
           }
           return jsonResponse({ cards }, 200, origin);
         }
@@ -644,8 +655,8 @@ export default {
           const topic = body.topic || 'General knowledge';
           const count = Math.max(1, Math.min(20, body.count || 5));
 
-          if (!env || !env.OPENAI_API_KEY) {
-            return jsonResponse({ error: 'AI key not configured. Set OPENAI_API_KEY via `wrangler secret put OPENAI_API_KEY`.' }, 400, origin);
+          if (!env || !env.GOOGLE_GENAI_API_KEY) {
+            return jsonResponse({ error: 'AI key not configured. Set GOOGLE_GENAI_API_KEY via `wrangler secret put GOOGLE_GENAI_API_KEY`.' }, 400, origin);
           }
 
           const systemPrompt = `You are a quiz generator. Generate multiple-choice quiz questions in strict JSON format.
@@ -661,20 +672,20 @@ Rules:
 - Options must be concise, distinct, and accurate
 - Return ONLY valid JSON, no other text`;
 
-          const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${env.GOOGLE_GENAI_API_KEY}`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              model: 'llama-3.3-70b-versatile',
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: topic }
+              contents: [
+                { role: 'system', parts: [{ text: systemPrompt }] },
+                { role: 'user', parts: [{ text: topic }] }
               ],
-              temperature: 0.7,
-              max_tokens: 1200
+              generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 1200
+              }
             })
           }).catch(() => null);
 
@@ -684,12 +695,7 @@ Rules:
 
           const aiData = await aiResp.json().catch(() => null);
           
-          // Debug logging
-          console.log('AI Response Status:', aiResp.status);
-          console.log('AI Data:', JSON.stringify(aiData));
-          
-          const raw = aiData?.choices?.[0]?.message?.content || '';
-          console.log('Raw AI content:', raw);
+          const raw = aiData?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('\n') || '';
 
           try {
             const parsed = JSON.parse(raw);
@@ -698,24 +704,23 @@ Rules:
             }
           } catch (e) {
             console.error('Failed to parse AI response:', e.message);
-            // Check if API returned an error
             if (aiData?.error) {
               return jsonResponse({ error: `AI API error: ${aiData.error.message || JSON.stringify(aiData.error)}` }, 500, origin);
             }
-            // fall through to fallback
           }
 
           // Fallback: synthesize simple questions if parsing failed
           const fallback = Array.from({ length: count }).map((_, i) => {
+            const optionA = `${topic} - correct answer`;
             return {
               question: `Question ${i + 1} about ${topic}`,
               options: [
-                `${topic} - correct answer`,
+                optionA,
                 `${topic} - distractor 1`,
                 `${topic} - distractor 2`,
                 `${topic} - distractor 3`
               ],
-              correct: 'A'
+              correct: optionA
             };
           });
 
