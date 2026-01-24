@@ -36,24 +36,33 @@ app.post('/api/ai/generate', async (req, res) => {
   const prompt = body.prompt || body.text || 'Create flashcard Q&A pairs from this text.';
   const count = body.count || 5;
 
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return jsonResponse(res, { error: 'OPENAI_API_KEY not configured' }, 400);
+  const key = process.env.GROQ_API_KEY;
+  if (!key) return jsonResponse(res, { error: 'GROQ_API_KEY not configured' }, 400);
 
   try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: 'gpt-3.5-turbo', messages: [{ role: 'system', content: `Produce ${count} flashcards in JSON: {"cards":[{"front":"...","back":"..."}]}` }, { role: 'user', content: prompt }], max_tokens: 800 })
+      body: JSON.stringify({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        messages: [
+          { role: 'system', content: `Produce ${count} flashcards in JSON: {"cards":[{"front":"...","back":"..."}]}` },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 800,
+        temperature: 0.7
+      })
     });
     const data = await r.json();
-    const text = data?.choices?.[0]?.message?.content || '';
+    const raw = data?.choices?.[0]?.message?.content || '';
+    const fenced = raw.match(/```json\s*([\s\S]*?)```/) || raw.match(/```\s*([\s\S]*?)```/) || [null, raw];
     try {
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(fenced[1] || raw);
       if (Array.isArray(parsed.cards)) return jsonResponse(res, { cards: parsed.cards });
     } catch (e) {
       // fallback
     }
-    jsonResponse(res, { cards: [{ front: text.slice(0, 200), back: text.slice(0, 400) }] });
+    jsonResponse(res, { cards: [{ front: raw.slice(0, 200), back: raw.slice(0, 400) }] });
   } catch (err) {
     jsonResponse(res, { error: err.message || String(err) }, 500);
   }

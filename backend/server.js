@@ -328,14 +328,53 @@ app.post('/api/generate-cards', async (req, res) => {
     return res.status(400).json({ error: 'Topic is required' });
   }
 
+  const groqKey = process.env.GROQ_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
 
   try {
     let cards = [];
 
-    // Try Gemini first (faster and cheaper)
-    if (geminiKey) {
+    // Prefer Groq (Llama 3.3 70B)
+    if (groqKey) {
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${groqKey}`
+          },
+          body: JSON.stringify({
+            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            messages: [
+              {
+                role: 'system',
+                content: `Generate exactly ${count} educational flashcards. Return ONLY JSON: {"cards":[{"question":"...","answer":"..."}]}`
+              },
+              {
+                role: 'user',
+                content: `Topic: ${topic}`
+              }
+            ],
+            temperature: 0.7,
+            max_tokens: 1500
+          })
+        });
+
+        const data = await response.json();
+        const raw = data?.choices?.[0]?.message?.content || '';
+        const match = raw.match(/```json\s*([\s\S]*?)```/) || raw.match(/```\s*([\s\S]*?)```/) || [null, raw];
+        const parsed = JSON.parse(match[1] || raw);
+        if (parsed.cards && Array.isArray(parsed.cards)) {
+          cards = parsed.cards;
+        }
+      } catch (groqError) {
+        console.error('Groq error:', groqError.message);
+      }
+    }
+
+    // Try Gemini next (if configured)
+    if (cards.length === 0 && geminiKey) {
       try {
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
