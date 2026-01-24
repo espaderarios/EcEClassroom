@@ -646,7 +646,8 @@ export default {
           }
 
           if (aiData?.error) {
-            return jsonResponse({ error: `AI API error: ${aiData.error.message || JSON.stringify(aiData.error)}` }, 500, origin);
+            console.error('AI provider error', aiData.error);
+            text = body.text || body.rawText || '';
           }
 
           const tryParseLooseJson = (value) => {
