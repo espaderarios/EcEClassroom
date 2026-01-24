@@ -681,8 +681,15 @@ export default {
             return result;
           };
 
-          // Fallback: extract best-effort QA pairs from text lines
-          const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+          // Fallback: extract best-effort QA pairs from available text
+          const userSource = [body.text, body.rawText, prompt]
+            .find(value => typeof value === 'string' && value.trim().length > 0) || '';
+          const fallbackSourceText = (userSource || text || '').trim();
+          const sentences = fallbackSourceText
+            .split(/(?<=[.!?])\s+/)
+            .map(sentence => sentence.trim())
+            .filter(sentence => sentence.length > 0 && !/^you didn't provide/i.test(sentence) && !/^i'm ready to help/i.test(sentence));
+          const lines = sentences.length > 0 ? sentences : (fallbackSourceText ? [fallbackSourceText] : []);
           const cards = [];
           const fallbackCount = Math.min(Math.max(count, lines.length || 1), 20);
 
