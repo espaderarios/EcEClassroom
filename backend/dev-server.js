@@ -56,13 +56,58 @@ app.post('/api/ai/generate', async (req, res) => {
     const data = await r.json();
     const raw = data?.choices?.[0]?.message?.content || '';
     const fenced = raw.match(/```json\s*([\s\S]*?)```/) || raw.match(/```\s*([\s\S]*?)```/) || [null, raw];
+    const sourceText = fenced[1] || raw;
+
     try {
-      const parsed = JSON.parse(fenced[1] || raw);
+      const parsed = JSON.parse(sourceText);
       if (Array.isArray(parsed.cards)) return jsonResponse(res, { cards: parsed.cards });
     } catch (e) {
-      // fallback
+      // fallback below
     }
-    jsonResponse(res, { cards: [{ front: raw.slice(0, 200), back: raw.slice(0, 400) }] });
+
+    const tryParseLooseJson = (value) => {
+      if (!value || typeof value !== 'string') return null;
+      let trimmed = value.trim();
+      if (!trimmed) return null;
+      trimmed = trimmed.replace(/,$/, '');
+      try {
+        return JSON.parse(trimmed);
+      } catch (err) {
+        return null;
+      }
+    };
+
+    const coerceFromLine = (line) => {
+      if (!line || typeof line !== 'string') return {};
+      const parsed = tryParseLooseJson(line);
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+      const result = {};
+      const questionMatch = line.match(/"(?:question|front|prompt)"\s*:\s*"([^\"]*)"/i);
+      const answerMatch = line.match(/"(?:answer|back|response|explanation)"\s*:\s*"([^\"]*)"/i);
+      if (questionMatch) result.question = questionMatch[1];
+      if (answerMatch) result.answer = answerMatch[1];
+      return result;
+    };
+
+    const lines = sourceText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const fallbackCount = Math.max(count, lines.length || 1);
+    const fallbackCards = [];
+
+    for (let i = 0; i < fallbackCount; i++) {
+      const rawLine = lines[i] ? lines[i] : '';
+      const extracted = coerceFromLine(rawLine);
+      const questionText = (extracted.question || extracted.front || extracted.prompt || rawLine || `Question ${i + 1}`).trim();
+      const answerText = (extracted.answer || extracted.back || extracted.response || extracted.explanation || (rawLine ? rawLine.replace(/^Answer:\s*/i, '') : '') || `Answer for question ${i + 1}`).trim();
+
+      fallbackCards.push({
+        front: questionText || `Question ${i + 1}`,
+        back: answerText || `Answer for question ${i + 1}`
+      });
+    }
+
+    jsonResponse(res, { cards: fallbackCards });
   } catch (err) {
     jsonResponse(res, { error: err.message || String(err) }, 500);
   }

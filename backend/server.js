@@ -334,6 +334,7 @@ app.post('/api/generate-cards', async (req, res) => {
 
   try {
     let cards = [];
+    let fallbackSource = '';
 
     // Prefer Groq (Llama 3.3 70B)
     if (groqKey) {
@@ -363,6 +364,7 @@ app.post('/api/generate-cards', async (req, res) => {
 
         const data = await response.json();
         const raw = data?.choices?.[0]?.message?.content || '';
+        fallbackSource = raw;
         const match = raw.match(/```json\s*([\s\S]*?)```/) || raw.match(/```\s*([\s\S]*?)```/) || [null, raw];
         const parsed = JSON.parse(match[1] || raw);
         if (parsed.cards && Array.isArray(parsed.cards)) {
@@ -397,6 +399,7 @@ app.post('/api/generate-cards', async (req, res) => {
 
         const data = await response.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        fallbackSource = text;
         
         // Extract JSON from markdown code blocks if present
         const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || 
@@ -437,6 +440,7 @@ app.post('/api/generate-cards', async (req, res) => {
 
         const data = await response.json();
         const text = data?.choices?.[0]?.message?.content || '';
+        fallbackSource = text;
         const parsed = JSON.parse(text);
         if (parsed.cards && Array.isArray(parsed.cards)) {
           cards = parsed.cards;
@@ -446,12 +450,61 @@ app.post('/api/generate-cards', async (req, res) => {
       }
     }
 
+    const tryParseLooseJson = (value) => {
+      if (!value || typeof value !== 'string') return null;
+      let trimmed = value.trim();
+      if (!trimmed) return null;
+      trimmed = trimmed.replace(/,$/, '');
+      try {
+        return JSON.parse(trimmed);
+      } catch (err) {
+        return null;
+      }
+    };
+
+    const coerceFromLine = (line) => {
+      if (!line || typeof line !== 'string') return {};
+      const parsed = tryParseLooseJson(line);
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+
+      const result = {};
+      const questionMatch = line.match(/"(?:question|front|prompt)"\s*:\s*"([^\"]*)"/i);
+      const answerMatch = line.match(/"(?:answer|back|response|explanation)"\s*:\s*"([^\"]*)"/i);
+      if (questionMatch) {
+        result.question = questionMatch[1];
+      }
+      if (answerMatch) {
+        result.answer = answerMatch[1];
+      }
+      return result;
+    };
+
     // Fallback: generate simple cards if AI fails
     if (cards.length === 0) {
-      cards = Array.from({ length: count }, (_, i) => ({
-        question: `Question ${i + 1} about ${topic}`,
-        answer: `This is the answer for question ${i + 1} about ${topic}`
-      }));
+      const fallbackLines = (fallbackSource || '')
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+
+      const fallbackCount = Math.max(count, fallbackLines.length || 1);
+      const fallbackCards = [];
+
+      for (let i = 0; i < fallbackCount; i++) {
+        const rawLine = fallbackLines[i] || '';
+        const extracted = coerceFromLine(rawLine);
+
+        const questionText = (extracted.question || extracted.front || extracted.prompt || rawLine || `Question ${i + 1} about ${topic}`).trim();
+        const answerText = (extracted.answer || extracted.back || extracted.response || extracted.explanation || (rawLine ? rawLine.replace(/^Answer:\s*/i, '') : '') || `Key facts about ${topic}.`).trim();
+
+        fallbackCards.push({
+          question: questionText || `Question ${i + 1} about ${topic}`,
+          answer: answerText || `Key facts about ${topic}.`
+        });
+      }
+
+      cards = fallbackCards;
     }
 
     res.json({ cards });

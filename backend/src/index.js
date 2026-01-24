@@ -648,17 +648,56 @@ export default {
             return jsonResponse({ error: `AI API error: ${aiData.error.message || JSON.stringify(aiData.error)}` }, 500, origin);
           }
 
-          // Fallback: simple extraction if AI response isn't JSON
+          const tryParseLooseJson = (value) => {
+            if (!value || typeof value !== 'string') return null;
+            let trimmed = value.trim();
+            if (!trimmed) return null;
+            trimmed = trimmed.replace(/,$/, '');
+            try {
+              return JSON.parse(trimmed);
+            } catch (err) {
+              return null;
+            }
+          };
+
+          const coerceFromLine = (line) => {
+            if (!line || typeof line !== 'string') return {};
+            const parsed = tryParseLooseJson(line);
+            if (parsed && typeof parsed === 'object') {
+              return parsed;
+            }
+
+            const result = {};
+            const questionMatch = line.match(/"(?:question|front|prompt)"\s*:\s*"([^\"]*)"/i);
+            const answerMatch = line.match(/"(?:answer|back|response|explanation)"\s*:\s*"([^\"]*)"/i);
+            if (questionMatch) {
+              result.question = questionMatch[1];
+            }
+            if (answerMatch) {
+              result.answer = answerMatch[1];
+            }
+            return result;
+          };
+
+          // Fallback: extract best-effort QA pairs from text lines
           const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
           const cards = [];
-          for (let i = 0; i < Math.max(count, lines.length || 1); i++) {
-            const l = lines[i] && lines[i].toLowerCase() !== 'undefined' ? lines[i] : '';
+          const fallbackCount = Math.max(count, lines.length || 1);
+
+          for (let i = 0; i < fallbackCount; i++) {
+            const rawLine = lines[i] && lines[i].toLowerCase() !== 'undefined' ? lines[i] : '';
+            const extracted = coerceFromLine(rawLine);
+
+            const questionText = (extracted.question || extracted.front || extracted.prompt || rawLine || `Question ${i + 1} about ${topic || 'the subject'}`).trim();
+            const answerText = (extracted.answer || extracted.back || extracted.response || extracted.explanation || (rawLine ? rawLine.replace(/^Answer:\s*/i, '') : '') || `Key facts about ${topic || 'the subject'}.`).trim();
+
             cards.push({
               id: `card_${Date.now()}_${i}`,
-              question: l || `Question ${i + 1} about ${topic || 'the subject'}`,
-              answer: l ? `Answer: ${l}` : `Key facts about ${topic || 'the subject'}.`
+              question: questionText || `Question ${i + 1} about ${topic || 'the subject'}`,
+              answer: answerText || `Key facts about ${topic || 'the subject'}.`
             });
           }
+
           return jsonResponse({ cards }, 200, origin);
         }
 
