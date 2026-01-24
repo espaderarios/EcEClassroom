@@ -584,7 +584,8 @@ export default {
           const body = await request.json().catch(() => ({}));
           const topic = body.topic || '';
           const prompt = body.prompt || body.text || (topic ? `Create flashcard Q&A pairs about ${topic}.` : 'Create flashcard Q&A pairs from this text.');
-          const count = body.count || 5;
+          const parsedCount = Number.isFinite(Number(body.count)) ? Number(body.count) : 5;
+          const count = Math.max(1, Math.min(20, Math.floor(parsedCount)));
 
           if (!env || !env.GROQ_API_KEY) {
             return jsonResponse({ error: 'AI key not configured. Set GROQ_API_KEY via `wrangler secret put GROQ_API_KEY`.' }, 400, origin);
@@ -627,7 +628,7 @@ export default {
             // Try to parse model output as JSON
             const parsed = JSON.parse(text);
             if (Array.isArray(parsed.cards)) {
-              const cards = parsed.cards.map((c, i) => {
+              const cards = parsed.cards.slice(0, 20).map((c, i) => {
                 const questionRaw = typeof c.question === 'string' ? c.question.trim() : typeof c.front === 'string' ? c.front.trim() : '';
                 const answerRaw = typeof c.answer === 'string' ? c.answer.trim() : typeof c.back === 'string' ? c.back.trim() : '';
                 const questionClean = questionRaw && questionRaw.toLowerCase() !== 'undefined' ? questionRaw : '';
@@ -682,7 +683,7 @@ export default {
           // Fallback: extract best-effort QA pairs from text lines
           const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
           const cards = [];
-          const fallbackCount = Math.max(count, lines.length || 1);
+          const fallbackCount = Math.min(Math.max(count, lines.length || 1), 20);
 
           for (let i = 0; i < fallbackCount; i++) {
             const rawLine = lines[i] && lines[i].toLowerCase() !== 'undefined' ? lines[i] : '';
@@ -698,7 +699,7 @@ export default {
             });
           }
 
-          return jsonResponse({ cards }, 200, origin);
+          return jsonResponse({ cards: cards.slice(0, 20) }, 200, origin);
         }
 
         // AI-powered quiz generation (uses Groq API key from environment)

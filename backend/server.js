@@ -323,6 +323,8 @@ app.post('/auth/link-google', async (req, res) => {
 // AI Generation endpoint (using OpenAI/Gemini)
 app.post('/api/generate-cards', async (req, res) => {
   const { topic, count = 10 } = req.body;
+  const requestedCount = Number.isFinite(Number(count)) ? Number(count) : 10;
+  const cappedCount = Math.max(1, Math.min(20, Math.floor(requestedCount)));
 
   if (!topic) {
     return res.status(400).json({ error: 'Topic is required' });
@@ -350,7 +352,7 @@ app.post('/api/generate-cards', async (req, res) => {
             messages: [
               {
                 role: 'system',
-                content: `Generate exactly ${count} educational flashcards. Return ONLY JSON: {"cards":[{"question":"...","answer":"..."}]}`
+                content: `Generate exactly ${cappedCount} educational flashcards. Return ONLY JSON: {"cards":[{"question":"...","answer":"..."}]}`
               },
               {
                 role: 'user',
@@ -368,7 +370,16 @@ app.post('/api/generate-cards', async (req, res) => {
         const match = raw.match(/```json\s*([\s\S]*?)```/) || raw.match(/```\s*([\s\S]*?)```/) || [null, raw];
         const parsed = JSON.parse(match[1] || raw);
         if (parsed.cards && Array.isArray(parsed.cards)) {
-          cards = parsed.cards;
+          cards = parsed.cards.slice(0, 20).map((card, index) => {
+            const questionRaw = typeof card.question === 'string' ? card.question.trim() : typeof card.front === 'string' ? card.front.trim() : '';
+            const answerRaw = typeof card.answer === 'string' ? card.answer.trim() : typeof card.back === 'string' ? card.back.trim() : '';
+            const questionClean = questionRaw && questionRaw.toLowerCase() !== 'undefined' ? questionRaw : '';
+            const answerClean = answerRaw && answerRaw.toLowerCase() !== 'undefined' ? answerRaw : '';
+            return {
+              question: questionClean || `Question ${index + 1} about ${topic}`,
+              answer: answerClean || `Key facts about ${topic}.`
+            };
+          });
         }
       } catch (groqError) {
         console.error('Groq error:', groqError.message);
@@ -386,7 +397,7 @@ app.post('/api/generate-cards', async (req, res) => {
             body: JSON.stringify({
               contents: [{
                 parts: [{
-                  text: `Generate exactly ${count} educational flashcards about "${topic}". Return ONLY a JSON array with this exact format: {"cards":[{"question":"...","answer":"..."}]}. Each flashcard should be concise and educational.`
+                  text: `Generate exactly ${cappedCount} educational flashcards about "${topic}". Return ONLY a JSON array with this exact format: {"cards":[{"question":"...","answer":"..."}]}. Each flashcard should be concise and educational.`
                 }]
               }],
               generationConfig: {
@@ -408,7 +419,16 @@ app.post('/api/generate-cards', async (req, res) => {
         
         const parsed = JSON.parse(jsonMatch[1] || text);
         if (parsed.cards && Array.isArray(parsed.cards)) {
-          cards = parsed.cards;
+          cards = parsed.cards.slice(0, 20).map((card, index) => {
+            const questionRaw = typeof card.question === 'string' ? card.question.trim() : typeof card.front === 'string' ? card.front.trim() : '';
+            const answerRaw = typeof card.answer === 'string' ? card.answer.trim() : typeof card.back === 'string' ? card.back.trim() : '';
+            const questionClean = questionRaw && questionRaw.toLowerCase() !== 'undefined' ? questionRaw : '';
+            const answerClean = answerRaw && answerRaw.toLowerCase() !== 'undefined' ? answerRaw : '';
+            return {
+              question: questionClean || `Question ${index + 1} about ${topic}`,
+              answer: answerClean || `Key facts about ${topic}.`
+            };
+          });
         }
       } catch (geminiError) {
         console.error('Gemini error:', geminiError.message);
@@ -428,7 +448,7 @@ app.post('/api/generate-cards', async (req, res) => {
             model: 'gpt-3.5-turbo',
             messages: [{
               role: 'system',
-              content: `Generate exactly ${count} educational flashcards. Return ONLY JSON: {"cards":[{"question":"...","answer":"..."}]}`
+              content: `Generate exactly ${cappedCount} educational flashcards. Return ONLY JSON: {"cards":[{"question":"...","answer":"..."}]}`
             }, {
               role: 'user',
               content: `Topic: ${topic}`
@@ -443,7 +463,16 @@ app.post('/api/generate-cards', async (req, res) => {
         fallbackSource = text;
         const parsed = JSON.parse(text);
         if (parsed.cards && Array.isArray(parsed.cards)) {
-          cards = parsed.cards;
+          cards = parsed.cards.slice(0, 20).map((card, index) => {
+            const questionRaw = typeof card.question === 'string' ? card.question.trim() : typeof card.front === 'string' ? card.front.trim() : '';
+            const answerRaw = typeof card.answer === 'string' ? card.answer.trim() : typeof card.back === 'string' ? card.back.trim() : '';
+            const questionClean = questionRaw && questionRaw.toLowerCase() !== 'undefined' ? questionRaw : '';
+            const answerClean = answerRaw && answerRaw.toLowerCase() !== 'undefined' ? answerRaw : '';
+            return {
+              question: questionClean || `Question ${index + 1} about ${topic}`,
+              answer: answerClean || `Key facts about ${topic}.`
+            };
+          });
         }
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError.message);
@@ -488,7 +517,10 @@ app.post('/api/generate-cards', async (req, res) => {
         .map(line => line.trim())
         .filter(Boolean);
 
-      const fallbackCount = Math.max(count, fallbackLines.length || 1);
+      const fallbackCount = Math.min(
+        Math.max(cappedCount, fallbackLines.length || 1),
+        20
+      );
       const fallbackCards = [];
 
       for (let i = 0; i < fallbackCount; i++) {
@@ -507,7 +539,7 @@ app.post('/api/generate-cards', async (req, res) => {
       cards = fallbackCards;
     }
 
-    res.json({ cards });
+    res.json({ cards: cards.slice(0, 20) });
   } catch (error) {
     console.error('Generate cards error:', error);
     res.status(500).json({ error: 'Failed to generate cards', details: error.message });

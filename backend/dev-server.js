@@ -20,7 +20,8 @@ app.get(['/', '/health'], (req, res) => {
 app.post('/api/generate-cards', (req, res) => {
   const body = req.body || {};
   const text = body.text || body.prompt || 'Sample content about basic electronics: resistors, capacitors, circuits.';
-  const count = body.count || 5;
+  const parsedCount = Number.isFinite(Number(body.count)) ? Number(body.count) : 5;
+  const count = Math.max(1, Math.min(20, Math.floor(parsedCount)));
   const parts = text.split(/[.?!]\s+/).filter(Boolean);
   const cards = [];
   for (let i = 0; i < count; i++) {
@@ -34,7 +35,8 @@ app.post('/api/generate-cards', (req, res) => {
 app.post('/api/ai/generate', async (req, res) => {
   const body = req.body || {};
   const prompt = body.prompt || body.text || 'Create flashcard Q&A pairs from this text.';
-  const count = body.count || 5;
+  const parsedCount = Number.isFinite(Number(body.count)) ? Number(body.count) : 5;
+  const count = Math.max(1, Math.min(20, Math.floor(parsedCount)));
 
   const key = process.env.GROQ_API_KEY;
   if (!key) return jsonResponse(res, { error: 'GROQ_API_KEY not configured' }, 400);
@@ -60,7 +62,15 @@ app.post('/api/ai/generate', async (req, res) => {
 
     try {
       const parsed = JSON.parse(sourceText);
-      if (Array.isArray(parsed.cards)) return jsonResponse(res, { cards: parsed.cards });
+      if (Array.isArray(parsed.cards)) {
+        const cards = parsed.cards.slice(0, 20).map((card, index) => ({
+          ...card,
+          front: typeof card.front === 'string' ? card.front : card.question,
+          back: typeof card.back === 'string' ? card.back : card.answer,
+          id: card.id || `card_${Date.now()}_${index}`
+        }));
+        return jsonResponse(res, { cards });
+      }
     } catch (e) {
       // fallback below
     }
@@ -92,7 +102,7 @@ app.post('/api/ai/generate', async (req, res) => {
     };
 
     const lines = sourceText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    const fallbackCount = Math.max(count, lines.length || 1);
+    const fallbackCount = Math.min(Math.max(count, lines.length || 1), 20);
     const fallbackCards = [];
 
     for (let i = 0; i < fallbackCount; i++) {
@@ -107,7 +117,7 @@ app.post('/api/ai/generate', async (req, res) => {
       });
     }
 
-    jsonResponse(res, { cards: fallbackCards });
+    jsonResponse(res, { cards: fallbackCards.slice(0, 20) });
   } catch (err) {
     jsonResponse(res, { error: err.message || String(err) }, 500);
   }
