@@ -338,42 +338,55 @@ window.isAuthenticated = getUser()?.authenticated === true;
     init: async function (h) {
       handler = h;
       load();
-      
-      // Sync with backend if authenticated
+      notify();
+
+      // Defer remote sync work so the initial render is not blocked
       const user = getUser();
       if (user && user.authenticated && !isSyncing) {
         isSyncing = true;
-        try {
-          const backendData = await loadFromBackend();
-          
-          // Merge backend data with local data (backend takes precedence for conflicts)
-          const localIds = new Set(data.map(d => d.id));
-          const backendIds = new Set(backendData.map(d => d.id));
-          
-          // Add items from backend that don't exist locally
-          backendData.forEach(item => {
-            if (!localIds.has(item.id)) {
-              data.push(item);
+        (async () => {
+          try {
+            const backendDataRaw = await loadFromBackend();
+            const backendData = Array.isArray(backendDataRaw) ? backendDataRaw : [];
+
+            const localIds = new Set(data.map(item => item && item.id).filter(Boolean));
+            let merged = false;
+
+            backendData.forEach(item => {
+              if (item && item.id && !localIds.has(item.id)) {
+                data.push(item);
+                localIds.add(item.id);
+                merged = true;
+              }
+            });
+
+            if (merged) {
+              save();
+              notify();
             }
-          });
-          
-          // Upload local items that don't exist on backend
-          for (const item of data) {
-            if (!backendIds.has(item.id)) {
-              await syncToBackend(item, 'POST');
+
+            const backendIds = new Set(backendData.map(item => item && item.id).filter(Boolean));
+            const pendingUploads = data
+              .filter(item => item && item.id && !backendIds.has(item.id))
+              .map(item => syncToBackend(item, 'POST'));
+
+            if (pendingUploads.length) {
+              Promise.allSettled(pendingUploads).then(results => {
+                const failures = results.filter(result => result.status === 'rejected');
+                if (failures.length) {
+                  console.log('Create sync failed:', failures.map(f => f.reason));
+                }
+              });
             }
+          } catch (error) {
+            console.log('Initial sync failed:', error);
+          } finally {
+            isSyncing = false;
           }
-          
-          save();
-        } catch (error) {
-          console.log('Initial sync failed:', error);
-        } finally {
-          isSyncing = false;
-        }
+        })();
       }
-      
-      notify();
-      return Promise.resolve({ isOk: true });
+
+      return { isOk: true };
     },
 
     create: async function (item) {
