@@ -2,12 +2,48 @@ const CACHE_NAME = 'ec-eclassroom-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
+  './info.html',
   './app.js',
   './styles.css',
   './tailwindcss.js',
   './manifest.json',
+  './service-worker.js',
+  './head_app_full.txt',
+  './head_app_top.txt',
   './icons/icon-192.png',
   './icons/icon-512.png'
+];
+
+const FONT_ASSETS = [
+  './fonts/BBHBartle-Regular.ttf',
+  './fonts/BBHBogle-Regular.ttf',
+  './fonts/BBHHegarty-Regular.ttf',
+  './fonts/GoogleSans-Italic-VariableFont_GRAD,opsz,wght.ttf',
+  './fonts/GoogleSans-VariableFont_GRAD,opsz,wght.ttf',
+  './fonts/OpenSans-Italic-VariableFont_wdth,wght.ttf',
+  './fonts/OpenSans-VariableFont_wdth,wght.ttf',
+  './fonts/Orbitron-VariableFont_wght.ttf',
+  './fonts/PlayfairDisplay-Italic-VariableFont_wght.ttf',
+  './fonts/PlayfairDisplay-VariableFont_wght.ttf',
+  './fonts/Roboto-Italic-VariableFont_wdth,wght.ttf',
+  './fonts/Roboto-VariableFont_wdth,wght.ttf'
+];
+
+const IMAGE_ASSETS = [
+  './CircuitsImg/CircuitsA1.jpeg',
+  './CircuitsImg/CircuitsA2.jpeg',
+  './CircuitsImg/CircuitsA3.jpeg',
+  './CircuitsImg/CircuitsA4.jpeg',
+  './CircuitsImg/CircuitsA5.jpeg',
+  './CircuitsImg/CircuitsA6.jpeg',
+  './CircuitsImg/CircuitsA7.jpeg',
+  './CircuitsImg/CircuitsQ1.jpeg',
+  './CircuitsImg/CircuitsQ2.jpeg',
+  './CircuitsImg/CircuitsQ3.jpeg',
+  './CircuitsImg/CircuitsQ4.jpeg',
+  './CircuitsImg/CircuitsQ5.jpeg',
+  './CircuitsImg/CircuitsQ6.jpeg',
+  './CircuitsImg/CircuitsQ7.jpeg'
 ];
 
 const ICON_ASSETS = [
@@ -108,7 +144,14 @@ const ICON_ASSETS = [
   './icons/year-level.svg'
 ];
 
-const PRECACHE_ASSETS = [...CORE_ASSETS, ...ICON_ASSETS];
+const PRECACHE_ASSETS = [
+  ...new Set([
+    ...CORE_ASSETS,
+    ...FONT_ASSETS,
+    ...ICON_ASSETS,
+    ...IMAGE_ASSETS
+  ])
+];
 
 self.addEventListener('install', event => {
   event.waitUntil(
