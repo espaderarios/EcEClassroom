@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="EcEClassroom - Modern learning management platform for students and teachers">
   <meta name="theme-color" content="#1e3a8a">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="light">
   
   <!-- Apple/iOS Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -541,11 +541,6 @@ if ('serviceWorker' in navigator) {
       </div>
       
       <div class="flex gap-md" style="display: flex; gap: var(--spacing-md); align-items: center;">
-        <!-- Dark Mode Toggle -->
-        <button class="btn-icon" id="theme-toggle" title="Toggle dark mode" style="background: transparent; color: var(--text);">
-          🌙
-        </button>
-        
         <!-- Settings Button -->
         <button id="openSettingsBtn" class="btn-icon" style="background: transparent; color: var(--text);">
           ⚙️
@@ -595,51 +590,6 @@ if ('serviceWorker' in navigator) {
   </script>
   <script src="app.js?v=20260121b"></script>
 
-  <!-- Dark Mode Script -->
-  <script>
-    // Initialize dark mode preference
-    function initDarkMode() {
-      const darkModeToggle = document.getElementById('theme-toggle');
-      const appBody = document.getElementById('app-body');
-      
-      // Check for saved preference
-      const savedMode = localStorage.getItem('theme-mode');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const isDark = savedMode ? savedMode === 'dark' : prefersDark;
-      
-      // Apply theme
-      if (isDark) {
-        appBody.classList.add('dark-mode');
-        darkModeToggle.textContent = '☀️';
-      } else {
-        appBody.classList.add('light-mode');
-        darkModeToggle.textContent = '🌙';
-      }
-      
-      // Toggle handler
-      darkModeToggle.addEventListener('click', () => {
-        const isDarkMode = appBody.classList.contains('dark-mode');
-        if (isDarkMode) {
-          appBody.classList.remove('dark-mode');
-          appBody.classList.add('light-mode');
-          localStorage.setItem('theme-mode', 'light');
-          darkModeToggle.textContent = '🌙';
-        } else {
-          appBody.classList.remove('light-mode');
-          appBody.classList.add('dark-mode');
-          localStorage.setItem('theme-mode', 'dark');
-          darkModeToggle.textContent = '☀️';
-        }
-      });
-    }
-
-    // Initialize when DOM is ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initDarkMode);
-    } else {
-      initDarkMode();
-    }
-  </script>
 
   <!-- Backend Sync Script -->
   <script>
