@@ -71,16 +71,16 @@
   --font-weight-bold: 700;
   --font-weight-extrabold: 800;
 
-  /* Font sizes - Mobile first */
-  --font-size: 16px;
-  --font-size-xs: 12px;
-  --font-size-sm: 14px;
-  --font-size-base: 16px;
-  --font-size-lg: 18px;
-  --font-size-xl: 20px;
-  --font-size-2xl: 24px;
-  --font-size-3xl: 30px;
-  --font-size-4xl: 36px;
+  /* Font sizes - Mobile first (min 6px, max 16px) */
+  --font-size: 14px;
+  --font-size-xs: 6px;
+  --font-size-sm: 10px;
+  --font-size-base: 14px;
+  --font-size-lg: 15px;
+  --font-size-xl: 16px;
+  --font-size-2xl: 16px;
+  --font-size-3xl: 16px;
+  --font-size-4xl: 16px;
   
   /* Line heights */
   --line-height-tight: 1.25;
@@ -177,25 +177,25 @@
 /* ============ RESPONSIVE BREAKPOINTS ============ */
 @media (min-width: 640px) {
   :root {
-    --font-size: 17px;
+    --font-size: 14px;
   }
 }
 
 @media (min-width: 768px) {
   :root {
-    --font-size: 18px;
+    --font-size: 14px;
   }
 }
 
 @media (min-width: 1024px) {
   :root {
-    --font-size: 18px;
+    --font-size: 14px;
   }
 }
 
 @media (min-width: 1280px) {
   :root {
-    --font-size: 20px;
+    --font-size: 14px;
   }
 }
 

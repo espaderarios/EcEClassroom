@@ -194,7 +194,7 @@ if (oauthStatus === 'success') {
 
     setUser(googleUser);
 
-    const studentProfile = JSON.parse(localStorage.getItem('student_profile') || '{}');
+    const studentProfile = JSON.parse(localStorage.getItem(`student_profile::${userId}`) || '{}');
     const updatedStudentProfile = {
       ...studentProfile,
       name: userName || studentProfile.name || '',
@@ -204,9 +204,9 @@ if (oauthStatus === 'success') {
       profilePictureUrl: picture || studentProfile.profilePictureUrl,
       id: userId
     };
-    localStorage.setItem('student_profile', JSON.stringify(updatedStudentProfile));
+    localStorage.setItem(`student_profile::${userId}`, JSON.stringify(updatedStudentProfile));
 
-    const teacherProfile = JSON.parse(localStorage.getItem('teacherProfile') || '{}');
+    const teacherProfile = JSON.parse(localStorage.getItem(`teacherProfile::${userId}`) || '{}');
     const updatedTeacherProfile = {
       ...teacherProfile,
       name: userName || teacherProfile.name || '',
@@ -216,7 +216,7 @@ if (oauthStatus === 'success') {
       profilePictureUrl: picture || teacherProfile.profilePictureUrl,
       id: userId
     };
-    localStorage.setItem('teacherProfile', JSON.stringify(updatedTeacherProfile));
+    localStorage.setItem(`teacherProfile::${userId}`, JSON.stringify(updatedTeacherProfile));
 
     window.currentStudent = {
       name: userName || updatedStudentProfile.name || '',
