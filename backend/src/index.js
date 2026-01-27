@@ -126,6 +126,29 @@ async function handleCollection(request, pathname, kv, origin = '*') {
   }
 }
 
+async function handleFlashcards(request, url, kv, origin = '*') {
+  if (!kv) {
+    return jsonResponse({ error: 'KV namespace not available' }, 500, origin);
+  }
+
+  const pathname = url.pathname;
+  const id = parseIdFromPath(pathname);
+
+  if (request.method === 'GET') {
+    if (id) {
+      const item = await kvGet(kv, id);
+      return item ? jsonResponse(item, 200, origin) : jsonResponse({ error: 'Not found' }, 404, origin);
+    }
+
+    const userId = url.searchParams.get('userId') || url.searchParams.get('user_id');
+    const items = await kvGetAll(kv);
+    const filtered = userId ? items.filter(item => item && item.userId === userId) : items;
+    return jsonResponse(filtered, 200, origin);
+  }
+
+  return handleCollection(request, pathname, kv, origin);
+}
+
 function buildLibrarySetKey(id) {
   return `library:set:${id}`;
 }
@@ -1018,7 +1041,7 @@ Rules:
       }
 
       if (pathname.startsWith('/api/flashcards')) {
-        return handleCollection(request, pathname, env.FLASHCARDS, origin);
+        return handleFlashcards(request, url, env.FLASHCARDS, origin);
       }
 
       return jsonResponse({ error: 'Not found' }, 404, origin);

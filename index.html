@@ -314,7 +314,7 @@ window.isAuthenticated = getUser()?.authenticated === true;
     
     try {
       const backendUrl = 'https://ec-eclassroom-backend.espaderarios.workers.dev';
-      const response = await fetch(`${backendUrl}/api/flashcards`);
+      const response = await fetch(`${backendUrl}/api/flashcards?userId=${encodeURIComponent(user.id)}`);
       if (!response.ok) return [];
       
       const items = await response.json();
