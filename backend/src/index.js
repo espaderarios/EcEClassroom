@@ -130,6 +130,143 @@ function buildLibrarySetKey(id) {
   return `library:set:${id}`;
 }
 
+function normalizeEmail(email = '') {
+  return email.trim().toLowerCase();
+}
+
+function normalizeUsername(username = '') {
+  return username.trim().toLowerCase();
+}
+
+function generateUserId() {
+  return `user_${crypto.randomUUID()}`;
+}
+
+function generateSalt() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  let binary = '';
+  bytes.forEach(byte => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+async function hashPasswordWithSalt(password, salt) {
+  const encoder = new TextEncoder();
+  const payload = encoder.encode(`${salt}:${password}`);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', payload);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function sanitizeAuthUser(user) {
+  if (!user || typeof user !== 'object') {
+    return null;
+  }
+  const { passwordHash, passwordSalt, normalizedEmail, normalizedUsername, ...safe } = user;
+  return Object.assign({}, safe, { authenticated: true, provider: user.provider || 'local' });
+}
+
+async function handleLocalAuth(request, pathname, env, origin = '*') {
+  if (!env || !env.STUDENTS) {
+    return jsonResponse({ error: 'User storage is not configured' }, 500, origin);
+  }
+
+  const now = new Date().toISOString();
+
+  if (pathname === '/api/auth/register' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const name = (body.name || '').trim();
+    const username = (body.username || '').trim();
+    const emailRaw = (body.email || '').trim();
+    const password = typeof body.password === 'string' ? body.password : '';
+
+    if (!name || !username || !emailRaw || !password) {
+      return jsonResponse({ error: 'All fields are required' }, 400, origin);
+    }
+
+    if (password.length < 6) {
+      return jsonResponse({ error: 'Password must be at least 6 characters' }, 400, origin);
+    }
+
+    const normalizedEmail = normalizeEmail(emailRaw);
+    const normalizedUsername = normalizeUsername(username);
+    const emailKey = `auth:email:${normalizedEmail}`;
+    const usernameKey = `auth:username:${normalizedUsername}`;
+
+    const existingByEmail = await kvGet(env.STUDENTS, emailKey);
+    if (existingByEmail && existingByEmail.userId) {
+      return jsonResponse({ error: 'Email is already registered' }, 409, origin);
+    }
+
+    const existingByUsername = await kvGet(env.STUDENTS, usernameKey);
+    if (existingByUsername && existingByUsername.userId) {
+      return jsonResponse({ error: 'Username is already taken' }, 409, origin);
+    }
+
+    const userId = generateUserId();
+    const passwordSalt = generateSalt();
+    const passwordHash = await hashPasswordWithSalt(password, passwordSalt);
+
+    const userRecord = {
+      id: userId,
+      name,
+      username,
+      email: emailRaw,
+      normalizedEmail,
+      normalizedUsername,
+      provider: 'local',
+      createdAt: now,
+      updatedAt: now,
+      passwordSalt,
+      passwordHash
+    };
+
+    await kvPut(env.STUDENTS, `auth:user:${userId}`, userRecord);
+    await kvPut(env.STUDENTS, emailKey, { userId });
+    await kvPut(env.STUDENTS, usernameKey, { userId });
+
+    return jsonResponse({ user: sanitizeAuthUser(userRecord) }, 201, origin);
+  }
+
+  if (pathname === '/api/auth/login' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const identifierRaw = (body.identifier || body.email || body.username || '').trim();
+    const password = typeof body.password === 'string' ? body.password : '';
+
+    if (!identifierRaw || !password) {
+      return jsonResponse({ error: 'Identifier and password are required' }, 400, origin);
+    }
+
+    const looksLikeEmail = identifierRaw.includes('@');
+    const normalizedIdentifier = looksLikeEmail ? normalizeEmail(identifierRaw) : normalizeUsername(identifierRaw);
+    const mappingKey = looksLikeEmail ? `auth:email:${normalizedIdentifier}` : `auth:username:${normalizedIdentifier}`;
+
+    const mapping = await kvGet(env.STUDENTS, mappingKey);
+    if (!mapping || !mapping.userId) {
+      return jsonResponse({ error: 'Invalid credentials' }, 401, origin);
+    }
+
+    const storedUser = await kvGet(env.STUDENTS, `auth:user:${mapping.userId}`);
+    if (!storedUser || !storedUser.passwordSalt || !storedUser.passwordHash) {
+      return jsonResponse({ error: 'Invalid credentials' }, 401, origin);
+    }
+
+    const hashedAttempt = await hashPasswordWithSalt(password, storedUser.passwordSalt);
+    if (hashedAttempt !== storedUser.passwordHash) {
+      return jsonResponse({ error: 'Invalid credentials' }, 401, origin);
+    }
+
+    storedUser.updatedAt = now;
+    await kvPut(env.STUDENTS, `auth:user:${storedUser.id}`, storedUser);
+
+    return jsonResponse({ user: sanitizeAuthUser(storedUser) }, 200, origin);
+  }
+
+  return null;
+}
+
 function buildPublicOwnerKey(ownerId, ownerName) {
   const safeId = ownerId || ownerName || 'anonymous';
   return `public:${safeId}`;
@@ -396,6 +533,13 @@ export default {
 
       if (pathname === '/' || pathname === '/health') {
         return jsonResponse({ ok: true, name: 'ec-eclassroom-backend' }, 200, origin);
+      }
+
+      if (pathname.startsWith('/api/auth/')) {
+        const authResponse = await handleLocalAuth(request, pathname, env, origin);
+        if (authResponse) {
+          return authResponse;
+        }
       }
 
       // --- Google OAuth: start ---
