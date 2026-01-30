@@ -486,8 +486,50 @@ body {
 
 @media (max-width: 640px) {
   .intro-hero {
-    padding-top: 3.5rem;
-    padding-bottom: 2.5rem;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 2rem 1.25rem 1.75rem !important;
+    border-radius: 20px !important;
+  }
+
+  .intro-hero__content {
+    max-width: 100%;
+    padding: 1rem !important;
+    border-radius: 16px !important;
+    gap: 1rem;
+  }
+
+  .intro-brand {
+    letter-spacing: 0.25em;
+    font-size: 0.7rem;
+  }
+
+  .intro-title {
+    font-size: clamp(1.8rem, 6vw, 2.25rem);
+  }
+
+  .intro-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .intro-cta-group {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .intro-cta-group .btn-primary,
+  .intro-cta-group .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .intro-hero__visual {
+    order: 2;
+  }
+
+  .intro-hero__frame {
+    width: clamp(180px, 60vw, 260px);
+    border-radius: 28px;
   }
 
   .intro-services__grid,
