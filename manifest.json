@@ -1,6 +1,6 @@
 {
-  "name": "EcEClassroom - Flashcard Study",
-  "short_name": "EcEClassroom",
+  "name": "EClassroom - Flashcard Study",
+  "short_name": "EClassroom",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",

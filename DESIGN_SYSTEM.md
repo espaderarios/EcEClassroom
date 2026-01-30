@@ -1,7 +1,7 @@
-# EcEClassroom Design System
+# EClassroom Design System
 
 ## Overview
-EcEClassroom now features a modern, comprehensive design system built with accessibility and user experience as core principles.
+EClassroom now features a modern, comprehensive design system built with accessibility and user experience as core principles.
 
 ## Color Palette
 

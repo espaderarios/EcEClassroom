@@ -1,4 +1,4 @@
-# EcEClassroom Modern Design - Quick Start Guide
+# EClassroom Modern Design - Quick Start Guide
 
 ## 🚀 Getting Started with the New Design System
 
@@ -261,7 +261,7 @@ createSection(
 <!-- Flex Center -->
 <div class="flex-center gap-md">
   <span>🎓</span>
-  <h1>EcEClassroom</h1>
+  <h1>EClassroom</h1>
 </div>
 
 <!-- Grid -->

@@ -564,7 +564,7 @@ app.use((err, req, res, next) => {
 // Start server
 ensureDataDir().then(() => {
   app.listen(PORT, () => {
-    console.log(`✅ EcEClassroom Backend running on port ${PORT}`);
+    console.log(`✅ EClassroom Backend running on port ${PORT}`);
     console.log(`📁 Data directory: ${DATA_DIR}`);
     console.log(`🌍 API: http://localhost:${PORT}`);
   });

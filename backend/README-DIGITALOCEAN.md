@@ -1,6 +1,6 @@
-# EcEClassroom Backend - DigitalOcean Ready
+# EClassroom Backend - DigitalOcean Ready
 
-A production-ready Express backend for EcEClassroom with:
+A production-ready Express backend for EClassroom with:
 - ✅ File-based storage (upgrade to PostgreSQL for production)
 - ✅ Google OAuth authentication
 - ✅ AI flashcard generation (Gemini + OpenAI)

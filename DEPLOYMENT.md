@@ -1,6 +1,6 @@
-# 🚀 Deployment Guide - EcEClassroom
+# 🚀 Deployment Guide - EClassroom
 
-This guide will help you deploy the EcEClassroom backend to Cloudflare Workers for **persistent cloud storage**, **cross-device sync**, and **multi-user collaboration**.
+This guide will help you deploy the EClassroom backend to Cloudflare Workers for **persistent cloud storage**, **cross-device sync**, and **multi-user collaboration**.
 
 ## Prerequisites
 
@@ -230,4 +230,4 @@ This is **more than enough** for a classroom with hundreds of students! 🎓
 
 ---
 
-**You're all set!** Your EcEClassroom now has persistent cloud storage and works across all devices! 🚀
+**You're all set!** Your EClassroom now has persistent cloud storage and works across all devices! 🚀
