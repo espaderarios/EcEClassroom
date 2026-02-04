@@ -820,6 +820,8 @@ export default {
             if (!value || typeof value !== 'string') return true;
             const lowered = value.trim().toLowerCase();
             if (!lowered) return true;
+            if (lowered === '...' || /^[.·•\-–—]+$/.test(lowered)) return true;
+            if (lowered.length < 4) return true;
             if (lowered.startsWith('create flashcard')) return true;
             if (lowered.startsWith('generate')) return true;
             if (lowered.includes('return only valid json')) return true;
@@ -875,6 +877,9 @@ export default {
               normalizeCardField(card?.a);
 
             if (isPlaceholderText(questionRaw) || isPlaceholderText(answerRaw)) {
+              return null;
+            }
+            if (questionRaw.trim().toLowerCase() === answerRaw.trim().toLowerCase()) {
               return null;
             }
 
