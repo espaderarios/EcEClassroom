@@ -761,33 +761,44 @@ export default {
           const system = `You are a helpful assistant that converts study material into flashcards. Reply with valid JSON only: {"cards": [{"question":"Question text","answer":"Answer text"}]}. Create ${count} concise cards covering distinct points.`;
           const model = (env && env.GROQ_MODEL ? String(env.GROQ_MODEL).trim() : '') || 'llama3-70b-8192';
 
-          const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${env.GROQ_API_KEY}`
-            },
-            body: JSON.stringify({
-              model,
-              messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt }
-              ],
-              temperature: 0.7,
-              max_tokens: 800
-            })
-          }).catch(() => null);
+          const callGroq = async (systemPrompt, userPrompt, temperature = 0.7, maxTokens = 800) => {
+            const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${env.GROQ_API_KEY}`
+              },
+              body: JSON.stringify({
+                model,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userPrompt }
+                ],
+                temperature,
+                max_tokens: maxTokens
+              })
+            }).catch(() => null);
 
-          if (!aiResp) {
-            return jsonResponse({ error: 'Error contacting AI provider' }, 502, origin);
-          }
-          if (!aiResp.ok) {
-            const errorBody = await aiResp.text().catch(() => '');
-            return jsonResponse({ error: 'AI provider error', details: errorBody || `Status ${aiResp.status}` }, 502, origin);
+            if (!aiResp) {
+              return { error: 'Error contacting AI provider' };
+            }
+            if (!aiResp.ok) {
+              const errorBody = await aiResp.text().catch(() => '');
+              return { error: errorBody || `Status ${aiResp.status}` };
+            }
+
+            const aiData = await aiResp.json().catch(() => null);
+            const text = aiData?.choices?.[0]?.message?.content || '';
+            return { text, aiData };
+          };
+
+          const firstAttempt = await callGroq(system, prompt);
+          if (firstAttempt.error) {
+            return jsonResponse({ error: 'AI provider error', details: firstAttempt.error }, 502, origin);
           }
 
-          const aiData = await aiResp.json().catch(() => null);
-          let text = aiData?.choices?.[0]?.message?.content || '';
+          let text = firstAttempt.text || '';
+          const aiData = firstAttempt.aiData || null;
 
           if (text.includes('```')) {
             const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -923,7 +934,7 @@ export default {
             text = body.text || body.rawText || '';
           }
 
-          const extractedCards = extractCardsFromText(text).filter(card => {
+          let extractedCards = extractCardsFromText(text).filter(card => {
             const question = normalizeCardField(card.question);
             const answer = normalizeCardField(card.answer);
             return !isPlaceholderText(question) && !isPlaceholderText(answer);
@@ -937,6 +948,56 @@ export default {
 
             if (cards.length > 0) {
               return jsonResponse({ cards }, 200, origin);
+            }
+          }
+
+          const retrySystem = `Return ONLY strict JSON and nothing else. Format: {"cards":[{"question":"...","answer":"..."}]}. Do not include instructions, markdown, or placeholders.`;
+          const retryPrompt = topic
+            ? `Generate ${count} flashcard question-answer pairs about ${topic}. Each question and answer must be specific and factual.`
+            : `Generate ${count} flashcard question-answer pairs from this text: ${body.text || body.rawText || ''}`;
+
+          const retryAttempt = await callGroq(retrySystem, retryPrompt, 0.2, 900);
+          if (!retryAttempt.error) {
+            text = retryAttempt.text || '';
+
+            if (text.includes('```')) {
+              const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+              if (fenced && fenced[1]) {
+                text = fenced[1];
+              }
+            }
+
+            try {
+              const parsedRetry = JSON.parse(text);
+              const candidatesRetry = extractCardList(parsedRetry);
+              if (candidatesRetry.length > 0) {
+                const cards = candidatesRetry
+                  .slice(0, 20)
+                  .map(normalizeGeneratedCard)
+                  .filter(card => card && card.question && card.answer);
+                if (cards.length > 0) {
+                  return jsonResponse({ cards }, 200, origin);
+                }
+              }
+            } catch (e) {
+              // ignore and continue
+            }
+
+            extractedCards = extractCardsFromText(text).filter(card => {
+              const question = normalizeCardField(card.question);
+              const answer = normalizeCardField(card.answer);
+              return !isPlaceholderText(question) && !isPlaceholderText(answer);
+            });
+            if (extractedCards.length > 0) {
+              const cards = extractedCards.slice(0, 20).map((card, i) => ({
+                id: `card_${Date.now()}_${i}`,
+                question: normalizeCardField(card.question),
+                answer: normalizeCardField(card.answer)
+              })).filter(card => card.question && card.answer);
+
+              if (cards.length > 0) {
+                return jsonResponse({ cards }, 200, origin);
+              }
             }
           }
 
