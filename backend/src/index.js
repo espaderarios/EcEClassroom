@@ -822,6 +822,9 @@ export default {
             if (!lowered) return true;
             if (lowered.startsWith('create flashcard')) return true;
             if (lowered.startsWith('generate')) return true;
+            if (lowered.includes('return only valid json')) return true;
+            if (lowered.includes('use specific, factual')) return true;
+            if (lowered.includes('no placeholders')) return true;
             if (/^answer\s*\d+$/i.test(lowered)) return true;
             if (/^question\s*\d+/i.test(lowered)) return true;
             return false;
