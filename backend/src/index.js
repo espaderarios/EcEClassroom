@@ -44,6 +44,75 @@ function jsonResponse(data, status = 200, origin = '*') {
   });
 }
 
+const textEncoder = new TextEncoder();
+const DEV_TOKEN_TTL_MS = 1000 * 60 * 60 * 2; // 2 hours
+
+function base64UrlEncode(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64UrlDecode(value) {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function timingSafeEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a[i] ^ b[i];
+  }
+  return diff === 0;
+}
+
+async function hmacSign(payloadBytes, secret) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    textEncoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, payloadBytes);
+  return new Uint8Array(signature);
+}
+
+async function createDeveloperToken(secret) {
+  const now = Date.now();
+  const payload = {
+    iat: now,
+    exp: now + DEV_TOKEN_TTL_MS
+  };
+  const payloadBytes = textEncoder.encode(JSON.stringify(payload));
+  const signature = await hmacSign(payloadBytes, secret);
+  return `${base64UrlEncode(payloadBytes)}.${base64UrlEncode(signature)}`;
+}
+
+async function verifyDeveloperToken(token, secret) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    const payloadBytes = base64UrlDecode(parts[0]);
+    const signatureBytes = base64UrlDecode(parts[1]);
+    const expectedSignature = await hmacSign(payloadBytes, secret);
+    if (!timingSafeEqual(signatureBytes, expectedSignature)) return null;
+    const payload = JSON.parse(new TextDecoder().decode(payloadBytes));
+    if (!payload?.exp || Date.now() > payload.exp) return null;
+    return payload;
+  } catch (err) {
+    return null;
+  }
+}
+
 function redirectResponse(location, { status = 302, cookies = [] } = {}) {
   const headers = new Headers({ Location: location });
   cookies.forEach(c => headers.append('Set-Cookie', c));
@@ -147,6 +216,70 @@ async function handleFlashcards(request, url, kv, origin = '*') {
   }
 
   return handleCollection(request, pathname, kv, origin);
+}
+
+async function getDeveloperAuth(request, env) {
+  const authHeader = request.headers.get('Authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const secret = env.DEVELOPER_TOKEN_SECRET || env.DEVELOPER_PASSWORD;
+  if (!token || !secret) {
+    return { ok: false, error: 'Unauthorized' };
+  }
+  const payload = await verifyDeveloperToken(token, secret);
+  if (!payload) {
+    return { ok: false, error: 'Unauthorized' };
+  }
+  return { ok: true, payload };
+}
+
+async function handleDeveloperEndpoint(request, url, env, origin = '*') {
+  const pathname = url.pathname;
+
+  if (pathname === '/api/developer/login' && request.method === 'POST') {
+    if (!env.DEVELOPER_PASSWORD) {
+      return jsonResponse({ error: 'Developer password not configured' }, 500, origin);
+    }
+    const body = await request.json().catch(() => ({}));
+    const password = body?.password || '';
+    if (password !== env.DEVELOPER_PASSWORD) {
+      return jsonResponse({ error: 'Invalid password' }, 401, origin);
+    }
+    const secret = env.DEVELOPER_TOKEN_SECRET || env.DEVELOPER_PASSWORD;
+    const token = await createDeveloperToken(secret);
+    return jsonResponse({ token, expires_in: Math.floor(DEV_TOKEN_TTL_MS / 1000) }, 200, origin);
+  }
+
+  const auth = await getDeveloperAuth(request, env);
+  if (!auth.ok) {
+    return jsonResponse({ error: 'Unauthorized' }, 401, origin);
+  }
+
+  if (pathname === '/api/developer/flashcards' && request.method === 'GET') {
+    const sets = await kvGetAll(env.FLASHCARDS, 'library:set:');
+    return jsonResponse({ sets }, 200, origin);
+  }
+
+  if (pathname.startsWith('/api/developer/flashcards/')) {
+    const remoteId = decodeURIComponent(pathname.split('/').pop() || '');
+    if (!remoteId) {
+      return jsonResponse({ error: 'Missing set identifier' }, 400, origin);
+    }
+
+    if (request.method === 'GET') {
+      const stored = await kvGet(env.FLASHCARDS, buildLibrarySetKey(remoteId));
+      if (!stored) {
+        return jsonResponse({ error: 'Not found' }, 404, origin);
+      }
+      return jsonResponse({ set: stored, cards: stored.cards || [] }, 200, origin);
+    }
+
+    if (request.method === 'DELETE') {
+      await kvDelete(env.FLASHCARDS, buildLibrarySetKey(remoteId));
+      return jsonResponse({ ok: true }, 200, origin);
+    }
+  }
+
+  return jsonResponse({ error: 'Not found' }, 404, origin);
 }
 
 function buildLibrarySetKey(id) {
@@ -1221,6 +1354,10 @@ Rules:
 
       if (pathname.startsWith('/api/attempts')) {
         return handleCollection(request, pathname, env.QUIZZES, origin);
+      }
+
+      if (pathname.startsWith('/api/developer')) {
+        return handleDeveloperEndpoint(request, url, env, origin);
       }
 
       if (pathname.startsWith('/api/library')) {
