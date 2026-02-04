@@ -792,21 +792,6 @@ export default {
             return { text, aiData };
           };
 
-          const firstAttempt = await callGroq(system, prompt);
-          if (firstAttempt.error) {
-            return jsonResponse({ error: 'AI provider error', details: firstAttempt.error }, 502, origin);
-          }
-
-          let text = firstAttempt.text || '';
-          const aiData = firstAttempt.aiData || null;
-
-          if (text.includes('```')) {
-            const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-            if (fenced && fenced[1]) {
-              text = fenced[1];
-            }
-          }
-
           const extractCardList = (parsed) => {
             if (!parsed) return [];
             if (Array.isArray(parsed)) return parsed;
@@ -911,55 +896,9 @@ export default {
             }
             return matches;
           };
-
-          try {
-            // Try to parse model output as JSON
-            const parsed = JSON.parse(text);
-            const candidates = extractCardList(parsed);
-            if (candidates.length > 0) {
-              const cards = candidates
-                .slice(0, 20)
-                .map(normalizeGeneratedCard)
-                .filter(card => card && card.question && card.answer);
-              if (cards.length > 0) {
-                return jsonResponse({ cards }, 200, origin);
-              }
-            }
-          } catch (e) {
-            // fallthrough to fallback generator below
-          }
-
-          if (aiData?.error) {
-            console.error('AI provider error', aiData.error);
-            text = body.text || body.rawText || '';
-          }
-
-          let extractedCards = extractCardsFromText(text).filter(card => {
-            const question = normalizeCardField(card.question);
-            const answer = normalizeCardField(card.answer);
-            return !isPlaceholderText(question) && !isPlaceholderText(answer);
-          });
-          if (extractedCards.length > 0) {
-            const cards = extractedCards.slice(0, 20).map((card, i) => ({
-              id: `card_${Date.now()}_${i}`,
-              question: normalizeCardField(card.question),
-              answer: normalizeCardField(card.answer)
-            })).filter(card => card.question && card.answer);
-
-            if (cards.length > 0) {
-              return jsonResponse({ cards }, 200, origin);
-            }
-          }
-
-          const retrySystem = `Return ONLY strict JSON and nothing else. Format: {"cards":[{"question":"...","answer":"..."}]}. Do not include instructions, markdown, or placeholders.`;
-          const retryPrompt = topic
-            ? `Generate ${count} flashcard question-answer pairs about ${topic}. Each question and answer must be specific and factual.`
-            : `Generate ${count} flashcard question-answer pairs from this text: ${body.text || body.rawText || ''}`;
-
-          const retryAttempt = await callGroq(retrySystem, retryPrompt, 0.2, 900);
-          if (!retryAttempt.error) {
-            text = retryAttempt.text || '';
-
+          const parseCardsFromText = (rawText) => {
+            if (!rawText || typeof rawText !== 'string') return [];
+            let text = rawText;
             if (text.includes('```')) {
               const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
               if (fenced && fenced[1]) {
@@ -968,37 +907,81 @@ export default {
             }
 
             try {
-              const parsedRetry = JSON.parse(text);
-              const candidatesRetry = extractCardList(parsedRetry);
-              if (candidatesRetry.length > 0) {
-                const cards = candidatesRetry
+              const parsed = JSON.parse(text);
+              const candidates = extractCardList(parsed);
+              if (candidates.length > 0) {
+                return candidates
                   .slice(0, 20)
                   .map(normalizeGeneratedCard)
                   .filter(card => card && card.question && card.answer);
-                if (cards.length > 0) {
-                  return jsonResponse({ cards }, 200, origin);
-                }
               }
             } catch (e) {
-              // ignore and continue
+              // ignore and try text extraction
             }
 
-            extractedCards = extractCardsFromText(text).filter(card => {
+            const extractedCards = extractCardsFromText(text).filter(card => {
               const question = normalizeCardField(card.question);
               const answer = normalizeCardField(card.answer);
               return !isPlaceholderText(question) && !isPlaceholderText(answer);
             });
+
             if (extractedCards.length > 0) {
-              const cards = extractedCards.slice(0, 20).map((card, i) => ({
+              return extractedCards.slice(0, 20).map((card, i) => ({
                 id: `card_${Date.now()}_${i}`,
                 question: normalizeCardField(card.question),
                 answer: normalizeCardField(card.answer)
               })).filter(card => card.question && card.answer);
-
-              if (cards.length > 0) {
-                return jsonResponse({ cards }, 200, origin);
-              }
             }
+
+            return [];
+          };
+
+          const generateCardsBatch = async (batchCount) => {
+            const batchSystem = `You are a helpful assistant that converts study material into flashcards. Reply with valid JSON only: {"cards": [{"question":"Question text","answer":"Answer text"}]}. Create ${batchCount} concise cards covering distinct points.`;
+            const firstAttempt = await callGroq(batchSystem, prompt);
+            if (firstAttempt.error) {
+              return { error: firstAttempt.error, cards: [] };
+            }
+
+            const firstCards = parseCardsFromText(firstAttempt.text || '');
+            if (firstCards.length > 0) {
+              return { cards: firstCards };
+            }
+
+            const retrySystem = `Return ONLY strict JSON and nothing else. Format: {"cards":[{"question":"...","answer":"..."}]}. Do not include instructions, markdown, or placeholders.`;
+            const retryPrompt = topic
+              ? `Generate ${batchCount} flashcard question-answer pairs about ${topic}. Each question and answer must be specific and factual.`
+              : `Generate ${batchCount} flashcard question-answer pairs from this text: ${body.text || body.rawText || ''}`;
+
+            const retryAttempt = await callGroq(retrySystem, retryPrompt, 0.2, 900);
+            if (retryAttempt.error) {
+              return { error: retryAttempt.error, cards: [] };
+            }
+
+            const retryCards = parseCardsFromText(retryAttempt.text || '');
+            return { cards: retryCards };
+          };
+
+          const aggregatedCards = [];
+          let remaining = count;
+          const maxBatches = Math.min(3, Math.ceil(count / 10));
+
+          for (let i = 0; i < maxBatches && remaining > 0; i++) {
+            const batchCount = Math.min(10, remaining);
+            const batchResult = await generateCardsBatch(batchCount);
+            if (batchResult.error && aggregatedCards.length === 0) {
+              return jsonResponse({ error: 'AI provider error', details: batchResult.error }, 502, origin);
+            }
+            if (Array.isArray(batchResult.cards) && batchResult.cards.length > 0) {
+              aggregatedCards.push(...batchResult.cards);
+              remaining = count - aggregatedCards.length;
+            } else {
+              break;
+            }
+          }
+
+          if (aggregatedCards.length > 0) {
+            return jsonResponse({ cards: aggregatedCards.slice(0, 20) }, 200, origin);
           }
 
           const tryParseLooseJson = (value) => {
