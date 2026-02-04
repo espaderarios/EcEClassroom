@@ -759,9 +759,10 @@ export default {
           }
 
           const system = `You are a helpful assistant that converts study material into flashcards. Reply with valid JSON only: {"cards": [{"question":"Question text","answer":"Answer text"}]}. Create ${count} concise cards covering distinct points.`;
-          const model = (env && env.GROQ_MODEL ? String(env.GROQ_MODEL).trim() : '') || 'llama3-70b-8192';
+          const model = (env && env.GROQ_MODEL ? String(env.GROQ_MODEL).trim() : '') || 'mixtral-8x7b-32768';
 
           const callGroq = async (systemPrompt, userPrompt, temperature = 0.7, maxTokens = 800) => {
+            console.error(`[AI] Calling Groq with model: ${model}, count: ${count}`);
             const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
               method: 'POST',
               headers: {
@@ -784,6 +785,7 @@ export default {
             }
             if (!aiResp.ok) {
               const errorBody = await aiResp.text().catch(() => '');
+              console.error(`[AI] Groq error: ${aiResp.status}`, errorBody);
               return { error: errorBody || `Status ${aiResp.status}` };
             }
 
