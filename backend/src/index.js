@@ -971,40 +971,43 @@ export default {
             return result;
           };
 
-          // Fallback: extract best-effort QA pairs from available text
+          // Fallback: extract best-effort QA pairs from available user text only
           const userSource = [body.text, body.rawText]
             .find(value => typeof value === 'string' && value.trim().length > 0) || '';
           const fallbackSourceText = (userSource || '').trim();
+
+          if (!fallbackSourceText) {
+            return jsonResponse({ error: 'AI returned placeholder content. Please try again.' }, 502, origin);
+          }
+
           const sentences = fallbackSourceText
             .split(/(?<=[.!?])\s+/)
             .map(sentence => sentence.trim())
             .filter(sentence => sentence.length > 0 && !/^you didn't provide/i.test(sentence) && !/^i'm ready to help/i.test(sentence));
-          const lines = sentences.length > 0 ? sentences : (fallbackSourceText ? [fallbackSourceText] : []);
+          const lines = sentences.length > 0 ? sentences : [fallbackSourceText];
           const cards = [];
           const fallbackCount = Math.min(Math.max(count, lines.length || 1), 20);
-
-          const topicLabel = topic || 'the subject';
-          const fallbackTemplates = [
-            { question: `What is ${topicLabel}?`, answer: `Provide a concise definition of ${topicLabel}.` },
-            { question: `Why is ${topicLabel} important?`, answer: `Summarize the significance of ${topicLabel}.` },
-            { question: `What are key features of ${topicLabel}?`, answer: `List the main characteristics of ${topicLabel}.` },
-            { question: `Give an example of ${topicLabel}.`, answer: `Provide a concrete example related to ${topicLabel}.` },
-            { question: `What challenges are associated with ${topicLabel}?`, answer: `Describe common challenges related to ${topicLabel}.` }
-          ];
 
           for (let i = 0; i < fallbackCount; i++) {
             const rawLine = lines[i] && lines[i].toLowerCase() !== 'undefined' ? lines[i] : '';
             const extracted = coerceFromLine(rawLine);
-            const template = fallbackTemplates[i % fallbackTemplates.length];
 
-            const questionText = (extracted.question || extracted.front || extracted.prompt || rawLine || template.question).trim();
-            const answerText = (extracted.answer || extracted.back || extracted.response || extracted.explanation || (rawLine ? rawLine.replace(/^Answer:\s*/i, '') : '') || template.answer).trim();
+            const questionText = (extracted.question || extracted.front || extracted.prompt || rawLine || '').trim();
+            const answerText = (extracted.answer || extracted.back || extracted.response || extracted.explanation || (rawLine ? rawLine.replace(/^Answer:\s*/i, '') : '') || '').trim();
+
+            if (isPlaceholderText(questionText) || isPlaceholderText(answerText)) {
+              continue;
+            }
 
             cards.push({
               id: `card_${Date.now()}_${i}`,
-              question: questionText || template.question,
-              answer: answerText || template.answer
+              question: questionText,
+              answer: answerText
             });
+          }
+
+          if (cards.length === 0) {
+            return jsonResponse({ error: 'AI returned placeholder content. Please try again.' }, 502, origin);
           }
 
           return jsonResponse({ cards: cards.slice(0, 20) }, 200, origin);
