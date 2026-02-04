@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ec-eclassroom-v3';
+const CACHE_NAME = 'ec-eclassroom-v4';
 const CORE_ASSETS = [
   './',
   './index.html',

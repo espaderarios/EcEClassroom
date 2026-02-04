@@ -759,6 +759,7 @@ export default {
           }
 
           const system = `You are a helpful assistant that converts study material into flashcards. Reply with valid JSON only: {"cards": [{"question":"Question text","answer":"Answer text"}]}. Create ${count} concise cards covering distinct points.`;
+          const model = (env && env.GROQ_MODEL ? String(env.GROQ_MODEL).trim() : '') || 'llama3-70b-8192';
 
           const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
@@ -767,7 +768,7 @@ export default {
               'Authorization': `Bearer ${env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-              model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+              model,
               messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
@@ -780,6 +781,10 @@ export default {
           if (!aiResp) {
             return jsonResponse({ error: 'Error contacting AI provider' }, 502, origin);
           }
+          if (!aiResp.ok) {
+            const errorBody = await aiResp.text().catch(() => '');
+            return jsonResponse({ error: 'AI provider error', details: errorBody || `Status ${aiResp.status}` }, 502, origin);
+          }
 
           const aiData = await aiResp.json().catch(() => null);
           let text = aiData?.choices?.[0]?.message?.content || '';
@@ -791,22 +796,115 @@ export default {
             }
           }
 
+          const extractCardList = (parsed) => {
+            if (!parsed) return [];
+            if (Array.isArray(parsed)) return parsed;
+            if (typeof parsed !== 'object') return [];
+
+            if (Array.isArray(parsed.cards)) return parsed.cards;
+            if (Array.isArray(parsed.flashcards)) return parsed.flashcards;
+            if (Array.isArray(parsed.questions)) return parsed.questions;
+            if (Array.isArray(parsed.items)) return parsed.items;
+            if (Array.isArray(parsed.data)) return parsed.data;
+            return [];
+          };
+
+          const normalizeCardField = (value) => {
+            if (typeof value !== 'string') return '';
+            const trimmed = value.trim();
+            if (!trimmed || trimmed.toLowerCase() === 'undefined') return '';
+            return trimmed.replace(/^Answer:\s*/i, '').replace(/^Question:\s*/i, '').trim();
+          };
+
+          const isPlaceholderText = (value) => {
+            if (!value || typeof value !== 'string') return true;
+            const lowered = value.trim().toLowerCase();
+            if (!lowered) return true;
+            if (lowered.startsWith('create flashcard')) return true;
+            if (lowered.startsWith('generate')) return true;
+            if (/^answer\s*\d+$/i.test(lowered)) return true;
+            if (/^question\s*\d+/i.test(lowered)) return true;
+            return false;
+          };
+
+          const splitInlinePair = (value) => {
+            if (typeof value !== 'string') return { question: '', answer: '' };
+            const inline = value.trim();
+            if (!inline) return { question: '', answer: '' };
+            const qaMatch = inline.match(/^(?:Q(?:uestion)?\s*[:\-]\s*)?(.+?)\s*(?:A(?:nswer)?\s*[:\-]\s*)(.+)$/i);
+            if (qaMatch) {
+              return { question: qaMatch[1].trim(), answer: qaMatch[2].trim() };
+            }
+            const parts = inline.split(/\s[-–—:]\s/);
+            if (parts.length >= 2) {
+              return { question: parts[0].trim(), answer: parts.slice(1).join(' - ').trim() };
+            }
+            return { question: inline, answer: '' };
+          };
+
+          const normalizeGeneratedCard = (card, index) => {
+            if (typeof card === 'string') {
+              const parsedPair = splitInlinePair(card);
+              const question = normalizeCardField(parsedPair.question);
+              const answer = normalizeCardField(parsedPair.answer);
+              if (isPlaceholderText(question) || isPlaceholderText(answer)) {
+                return null;
+              }
+              return {
+                id: `card_${Date.now()}_${index}`,
+                question,
+                answer
+              };
+            }
+
+            const questionRaw =
+              normalizeCardField(card?.question) ||
+              normalizeCardField(card?.front) ||
+              normalizeCardField(card?.prompt) ||
+              normalizeCardField(card?.q);
+
+            const answerRaw =
+              normalizeCardField(card?.answer) ||
+              normalizeCardField(card?.back) ||
+              normalizeCardField(card?.response) ||
+              normalizeCardField(card?.explanation) ||
+              normalizeCardField(card?.definition) ||
+              normalizeCardField(card?.a);
+
+            if (isPlaceholderText(questionRaw) || isPlaceholderText(answerRaw)) {
+              return null;
+            }
+
+            return {
+              id: card?.id || `card_${Date.now()}_${index}`,
+              question: questionRaw,
+              answer: answerRaw
+            };
+          };
+
+          const extractCardsFromText = (value) => {
+            if (!value || typeof value !== 'string') return [];
+            const matches = [];
+            const qaRegex = /(?:^|\n)\s*(?:Q(?:uestion)?\s*[:\-])\s*(.+?)\s*(?:\n|\r\n)\s*(?:A(?:nswer)?\s*[:\-])\s*(.+?)(?=\n\s*(?:Q(?:uestion)?\s*[:\-])|\n*$)/gis;
+            let match;
+            while ((match = qaRegex.exec(value))) {
+              matches.push({ question: match[1].trim(), answer: match[2].trim() });
+            }
+            return matches;
+          };
+
           try {
             // Try to parse model output as JSON
             const parsed = JSON.parse(text);
-            if (Array.isArray(parsed.cards)) {
-              const cards = parsed.cards.slice(0, 20).map((c, i) => {
-                const questionRaw = typeof c.question === 'string' ? c.question.trim() : typeof c.front === 'string' ? c.front.trim() : '';
-                const answerRaw = typeof c.answer === 'string' ? c.answer.trim() : typeof c.back === 'string' ? c.back.trim() : '';
-                const questionClean = questionRaw && questionRaw.toLowerCase() !== 'undefined' ? questionRaw : '';
-                const answerClean = answerRaw && answerRaw.toLowerCase() !== 'undefined' ? answerRaw : '';
-                return {
-                  id: c.id || `card_${Date.now()}_${i}`,
-                  question: questionClean || `Question ${i + 1} about ${topic || 'the subject'}`,
-                  answer: answerClean || `Key facts about ${topic || 'the subject'}.`
-                };
-              });
-              return jsonResponse({ cards }, 200, origin);
+            const candidates = extractCardList(parsed);
+            if (candidates.length > 0) {
+              const cards = candidates
+                .slice(0, 20)
+                .map(normalizeGeneratedCard)
+                .filter(card => card && card.question && card.answer);
+              if (cards.length > 0) {
+                return jsonResponse({ cards }, 200, origin);
+              }
             }
           } catch (e) {
             // fallthrough to fallback generator below
@@ -815,6 +913,23 @@ export default {
           if (aiData?.error) {
             console.error('AI provider error', aiData.error);
             text = body.text || body.rawText || '';
+          }
+
+          const extractedCards = extractCardsFromText(text).filter(card => {
+            const question = normalizeCardField(card.question);
+            const answer = normalizeCardField(card.answer);
+            return !isPlaceholderText(question) && !isPlaceholderText(answer);
+          });
+          if (extractedCards.length > 0) {
+            const cards = extractedCards.slice(0, 20).map((card, i) => ({
+              id: `card_${Date.now()}_${i}`,
+              question: normalizeCardField(card.question),
+              answer: normalizeCardField(card.answer)
+            })).filter(card => card.question && card.answer);
+
+            if (cards.length > 0) {
+              return jsonResponse({ cards }, 200, origin);
+            }
           }
 
           const tryParseLooseJson = (value) => {
@@ -849,9 +964,9 @@ export default {
           };
 
           // Fallback: extract best-effort QA pairs from available text
-          const userSource = [body.text, body.rawText, prompt]
+          const userSource = [body.text, body.rawText]
             .find(value => typeof value === 'string' && value.trim().length > 0) || '';
-          const fallbackSourceText = (userSource || text || '').trim();
+          const fallbackSourceText = (userSource || '').trim();
           const sentences = fallbackSourceText
             .split(/(?<=[.!?])\s+/)
             .map(sentence => sentence.trim())
@@ -860,17 +975,27 @@ export default {
           const cards = [];
           const fallbackCount = Math.min(Math.max(count, lines.length || 1), 20);
 
+          const topicLabel = topic || 'the subject';
+          const fallbackTemplates = [
+            { question: `What is ${topicLabel}?`, answer: `Provide a concise definition of ${topicLabel}.` },
+            { question: `Why is ${topicLabel} important?`, answer: `Summarize the significance of ${topicLabel}.` },
+            { question: `What are key features of ${topicLabel}?`, answer: `List the main characteristics of ${topicLabel}.` },
+            { question: `Give an example of ${topicLabel}.`, answer: `Provide a concrete example related to ${topicLabel}.` },
+            { question: `What challenges are associated with ${topicLabel}?`, answer: `Describe common challenges related to ${topicLabel}.` }
+          ];
+
           for (let i = 0; i < fallbackCount; i++) {
             const rawLine = lines[i] && lines[i].toLowerCase() !== 'undefined' ? lines[i] : '';
             const extracted = coerceFromLine(rawLine);
+            const template = fallbackTemplates[i % fallbackTemplates.length];
 
-            const questionText = (extracted.question || extracted.front || extracted.prompt || rawLine || `Question ${i + 1} about ${topic || 'the subject'}`).trim();
-            const answerText = (extracted.answer || extracted.back || extracted.response || extracted.explanation || (rawLine ? rawLine.replace(/^Answer:\s*/i, '') : '') || `Key facts about ${topic || 'the subject'}.`).trim();
+            const questionText = (extracted.question || extracted.front || extracted.prompt || rawLine || template.question).trim();
+            const answerText = (extracted.answer || extracted.back || extracted.response || extracted.explanation || (rawLine ? rawLine.replace(/^Answer:\s*/i, '') : '') || template.answer).trim();
 
             cards.push({
               id: `card_${Date.now()}_${i}`,
-              question: questionText || `Question ${i + 1} about ${topic || 'the subject'}`,
-              answer: answerText || `Key facts about ${topic || 'the subject'}.`
+              question: questionText || template.question,
+              answer: answerText || template.answer
             });
           }
 
@@ -900,6 +1025,7 @@ Rules:
 - Options must be concise, distinct, and accurate
 - Return ONLY valid JSON, no other text`;
 
+          const model = (env && env.GROQ_MODEL ? String(env.GROQ_MODEL).trim() : '') || 'llama3-70b-8192';
           const aiResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -907,7 +1033,7 @@ Rules:
               'Authorization': `Bearer ${env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-              model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+              model,
               messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: topic }
@@ -919,6 +1045,10 @@ Rules:
 
           if (!aiResp) {
             return jsonResponse({ error: 'Error contacting AI provider' }, 502, origin);
+          }
+          if (!aiResp.ok) {
+            const errorBody = await aiResp.text().catch(() => '');
+            return jsonResponse({ error: 'AI provider error', details: errorBody || `Status ${aiResp.status}` }, 502, origin);
           }
 
           const aiData = await aiResp.json().catch(() => null);
