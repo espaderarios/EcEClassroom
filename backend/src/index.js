@@ -759,7 +759,7 @@ export default {
           }
 
           const system = `You are a helpful assistant that converts study material into flashcards. Reply with valid JSON only: {"cards": [{"question":"Question text","answer":"Answer text"}]}. Create ${count} concise cards covering distinct points.`;
-          const model = (env && env.GROQ_MODEL ? String(env.GROQ_MODEL).trim() : '') || 'mixtral-8x7b-32768';
+          const model = (env && env.GROQ_MODEL ? String(env.GROQ_MODEL).trim() : '') || 'llama-3.3-70b-versatile';
 
           const callGroq = async (systemPrompt, userPrompt, temperature = 0.7, maxTokens = 800) => {
             console.error(`[AI] Calling Groq with model: ${model}, count: ${count}`);
