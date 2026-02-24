@@ -6,6 +6,12 @@ compatibility_date = "2026-01-21"
 # account_id = "YOUR_ACCOUNT_ID"
 # workers_dev = true
 
+# D1 Database for Flashcard Data
+[[d1_databases]]
+binding = "DB"
+database_name = "eclassroom"
+database_id = "YOUR_DB_ID"
+
 # KV Namespaces for persistent storage
 [[kv_namespaces]]
 binding = "CLASSES"

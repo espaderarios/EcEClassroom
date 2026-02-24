@@ -540,6 +540,122 @@ async function handleLibraryEndpoint(request, url, env, origin = '*') {
   return jsonResponse({ error: 'Not found' }, 404, origin);
 }
 
+async function handleFlashcardsD1(request, url, env, origin = '*') {
+  const { pathname, searchParams } = url;
+  const userId = searchParams.get('userId');
+  const setId = searchParams.get('setId');
+  const idMatch = pathname.match(/\/api\/flashcards\/([^/?]+)/);
+  const cardId = idMatch ? idMatch[1] : null;
+
+  if (!env.DB) {
+    return jsonResponse({ error: 'Database not available' }, 503, origin);
+  }
+
+  const db = env.DB;
+
+  try {
+    // GET /api/flashcards - get all cards for user
+    if (request.method === 'GET') {
+      if (!userId) {
+        return jsonResponse({ error: 'userId required' }, 400, origin);
+      }
+
+      if (cardId) {
+        // GET specific card
+        const card = await db
+          .prepare(`SELECT * FROM flashcards WHERE id = ? AND user_id = ?`)
+          .bind(cardId, userId)
+          .first();
+        return jsonResponse(card || { error: 'Not found' }, card ? 200 : 404, origin);
+      }
+
+      // GET all cards, optionally filtered by setId
+      let query = `SELECT * FROM flashcards WHERE user_id = ?`;
+      const params = [userId];
+
+      if (setId) {
+        query += ` AND set_id = ?`;
+        params.push(setId);
+      }
+
+      query += ` ORDER BY created_at DESC`;
+
+      const result = await db.prepare(query).bind(...params).all();
+      return jsonResponse(result.results || [], 200, origin);
+    }
+
+    // POST /api/flashcards - create new card
+    if (request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { set_id, question, answer, type } = body;
+
+      if (!userId || !set_id || !question || !answer) {
+        return jsonResponse({ error: 'Missing required fields: userId, set_id, question, answer' }, 400, origin);
+      }
+
+      const id = body.id || `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+      const result = await db
+        .prepare(
+          `INSERT INTO flashcards (id, user_id, set_id, question, answer) 
+           VALUES (?, ?, ?, ?, ?)`
+        )
+        .bind(id, userId, set_id, question, answer)
+        .run();
+
+      if (!result.success) {
+        return jsonResponse({ error: 'Failed to create card' }, 500, origin);
+      }
+
+      return jsonResponse({ id, user_id: userId, set_id, question, answer }, 201, origin);
+    }
+
+    // PUT /api/flashcards/:id - update card
+    if (request.method === 'PUT' && cardId) {
+      const body = await request.json().catch(() => ({}));
+      const { question, answer } = body;
+
+      if (!question || !answer) {
+        return jsonResponse({ error: 'question and answer required' }, 400, origin);
+      }
+
+      const result = await db
+        .prepare(
+          `UPDATE flashcards 
+           SET question = ?, answer = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND user_id = ?`
+        )
+        .bind(question, answer, cardId, userId)
+        .run();
+
+      if (!result.success) {
+        return jsonResponse({ error: 'Failed to update card' }, 500, origin);
+      }
+
+      return jsonResponse({ id: cardId, user_id: userId, question, answer }, 200, origin);
+    }
+
+    // DELETE /api/flashcards/:id - delete card
+    if (request.method === 'DELETE' && cardId) {
+      const result = await db
+        .prepare(`DELETE FROM flashcards WHERE id = ? AND user_id = ?`)
+        .bind(cardId, userId)
+        .run();
+
+      if (!result.success) {
+        return jsonResponse({ error: 'Failed to delete card' }, 500, origin);
+      }
+
+      return jsonResponse({ ok: true }, 200, origin);
+    }
+
+    return jsonResponse({ error: 'Method not allowed' }, 405, origin);
+  } catch (error) {
+    console.error('D1 flashcards error:', error);
+    return jsonResponse({ error: error.message }, 500, origin);
+  }
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('origin') || '*';
@@ -1137,7 +1253,7 @@ Rules:
       }
 
       if (pathname.startsWith('/api/flashcards')) {
-        return handleFlashcards(request, url, env.FLASHCARDS, origin);
+        return handleFlashcardsD1(request, url, env, origin);
       }
 
       return jsonResponse({ error: 'Not found' }, 404, origin);

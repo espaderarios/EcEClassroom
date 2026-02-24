@@ -282,12 +282,17 @@ window.isAuthenticated = getUser()?.authenticated === true;
   }
 
   function getBackendUrl() {
-    // Use Render backend for production, fall back to localhost for development
+    // Use Worker for data, Render for AI
+    // Worker handles CRUD for flashcards
+    return 'https://ec-eclassroom-backend.espaderarios.workers.dev';
+  }
+
+  function getRenderBackendUrl() {
+    // Render backend for AI generation (Groq access works there)
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     if (isLocalhost) {
       return 'http://localhost:3000';
     }
-    // Production: use Render backend
     return 'https://eclassroom-backend.onrender.com';
   }
 
@@ -299,9 +304,12 @@ window.isAuthenticated = getUser()?.authenticated === true;
     try {
       const backendUrl = getBackendUrl();
       const shouldTargetItem = method === 'DELETE' || method === 'PUT' || method === 'PATCH';
-      const endpoint = shouldTargetItem
-        ? `${backendUrl}/api/flashcards/${encodeURIComponent(item.id)}`
-        : `${backendUrl}/api/flashcards`;
+      
+      // Add userId to query params for all requests
+      let endpoint = `${backendUrl}/api/flashcards?userId=${encodeURIComponent(user.id)}`;
+      if (shouldTargetItem) {
+        endpoint = `${backendUrl}/api/flashcards/${encodeURIComponent(item.id)}?userId=${encodeURIComponent(user.id)}`;
+      }
 
       const requestInit = {
         method: method,
@@ -328,7 +336,7 @@ window.isAuthenticated = getUser()?.authenticated === true;
       if (!response.ok) return [];
       
       const items = await response.json();
-      return Array.isArray(items) ? items.filter(item => item.userId === user.id) : [];
+      return Array.isArray(items) ? items : [];
     } catch (error) {
       console.log('Failed to load from backend:', error);
       return [];
