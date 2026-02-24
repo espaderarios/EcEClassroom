@@ -701,6 +701,36 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
         return jsonResponse({ error: 'Missing required fields: userId, set_id, question, answer' }, 400, origin);
       }
 
+      // Auto-create the user if it doesn't exist
+      try {
+        const userExists = await db
+          .prepare(`SELECT id FROM users WHERE id = ?`)
+          .bind(userId)
+          .first();
+
+        if (!userExists) {
+          // Extract email from userId if it's a Google user (google_XXX format)
+          const email = userId.startsWith('google_') 
+            ? `${userId}@gmail.com` 
+            : `${userId}@local.dev`;
+
+          const createUserResult = await db
+            .prepare(
+              `INSERT INTO users (id, email, name, provider, authenticated) 
+               VALUES (?, ?, ?, ?, ?)`
+            )
+            .bind(userId, email, userId, userId.startsWith('google_') ? 'google' : 'local', 1)
+            .run();
+
+          if (!createUserResult.success) {
+            console.error('Failed to auto-create user:', userId);
+          }
+        }
+      } catch (userError) {
+        console.error('Error checking/creating user:', userError);
+        // Continue - set might still work if user already exists
+      }
+
       // Auto-create the set if it doesn't exist
       try {
         const setExists = await db
