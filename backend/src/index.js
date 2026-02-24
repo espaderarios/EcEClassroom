@@ -847,7 +847,7 @@ export default {
               'Authorization': `Bearer ${env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-              model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+              model: 'llama-3.3-70b-versatile',
               messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
@@ -869,7 +869,7 @@ export default {
               error: 'AI provider error', 
               status: aiResp.status,
               details: errorBody,
-              model: 'meta-llama/llama-4-scout-17b-16e-instruct'
+              model: 'llama-3.3-70b-versatile'
             }, 502, origin);
           }
 
@@ -1002,7 +1002,7 @@ Rules:
               'Authorization': `Bearer ${env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-              model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+              model: 'llama-3.3-70b-versatile',
               messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: topic }
