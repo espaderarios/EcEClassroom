@@ -355,31 +355,38 @@ window.isAuthenticated = getUser()?.authenticated === true;
   window.dataSdk = {
     init: async function (h) {
       handler = h;
-      load();
-      notify();
-
-      // Load from backend FIRST to ensure we have all user data
+      
+      // CRITICAL: Clear data array first to prevent cross-user contamination
+      data = [];
+      
       const user = getUser();
+      
+      // Load from backend FIRST if authenticated
       if (user && user.authenticated && !isSyncing) {
         isSyncing = true;
         try {
+          console.log('[dataSdk] Loading data for user:', user.id);
+          
           // Load from backend first
           const backendDataRaw = await loadFromBackend();
           const backendData = Array.isArray(backendDataRaw) ? backendDataRaw : [];
 
-          console.log('[dataSdk] Loaded from backend:', backendData.length, 'items');
+          console.log('[dataSdk] Loaded from backend:', backendData.length, 'items for', user.id);
 
-          if (backendData.length > 0) {
-            // Replace local data with backend data for this user
-            data = backendData;
-            save();
-            notify();
-            console.log('[dataSdk] Synced', backendData.length, 'items from backend');
-          }
+          // ALWAYS use backend data as source of truth
+          data = backendData;
+          save(); // Save to user-specific localStorage key
+          notify(); // Update UI with backend data
+          
+          console.log('[dataSdk] User', user.id, 'has', data.length, 'flashcards');
 
-          // Then upload any local-only items that don't exist on backend
+          // Then check for local-only items that need uploading
+          load(); // Load from localStorage for this user
+          const localData = data.slice();
+          data = backendData; // Reset to backend data
+          
           const backendIds = new Set(backendData.map(item => item && item.id).filter(Boolean));
-          const pendingUploads = data
+          const pendingUploads = localData
             .filter(item => item && item.id && !backendIds.has(item.id))
             .map(item => syncToBackend(item, 'POST'));
 
@@ -394,9 +401,16 @@ window.isAuthenticated = getUser()?.authenticated === true;
           }
         } catch (error) {
           console.error('[dataSdk] Initial sync failed:', error);
+          // Fallback to localStorage if backend fails
+          load();
+          notify();
         } finally {
           isSyncing = false;
         }
+      } else {
+        // Not authenticated, load from localStorage (guest mode)
+        load();
+        notify();
       }
 
       return { isOk: true };
