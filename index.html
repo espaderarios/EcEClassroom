@@ -183,7 +183,7 @@ if (oauthStatus === 'success') {
     if (pendingLinkUserId) {
       googleUser.linkedUserId = pendingLinkUserId;
 
-      fetch('https://ec-eclassroom-backend.espaderarios.workers.dev/auth/link-google', {
+      fetch(`${getBackendUrl()}/auth/link-google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ localUserId: pendingLinkUserId, googleUserId: userId })
@@ -281,13 +281,23 @@ window.isAuthenticated = getUser()?.authenticated === true;
     }
   }
 
+  function getBackendUrl() {
+    // Use Render backend for production, fall back to localhost for development
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocalhost) {
+      return 'http://localhost:3000';
+    }
+    // Production: use Render backend
+    return 'https://eclassroom-backend.onrender.com';
+  }
+
   async function syncToBackend(item, method = 'POST') {
     const user = getUser();
     if (!user || !user.authenticated) return;
     if (!item || !item.id) return;
 
     try {
-      const backendUrl = 'https://ec-eclassroom-backend.espaderarios.workers.dev';
+      const backendUrl = getBackendUrl();
       const shouldTargetItem = method === 'DELETE' || method === 'PUT' || method === 'PATCH';
       const endpoint = shouldTargetItem
         ? `${backendUrl}/api/flashcards/${encodeURIComponent(item.id)}`
@@ -313,7 +323,7 @@ window.isAuthenticated = getUser()?.authenticated === true;
     if (!user || !user.authenticated) return [];
     
     try {
-      const backendUrl = 'https://ec-eclassroom-backend.espaderarios.workers.dev';
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/flashcards?userId=${encodeURIComponent(user.id)}`);
       if (!response.ok) return [];
       
