@@ -858,14 +858,22 @@ export default {
           }).catch(() => null);
 
           if (!aiResp) {
-            console.warn('AI provider unreachable, using fallback generator');
-            // Continue to fallback generator below
-          } else if (!aiResp.ok) {
-            console.warn(`AI provider returned ${aiResp.status}, using fallback generator`);
-            // Continue to fallback generator below
+            console.error('[AI] Provider unreachable');
+            return jsonResponse({ error: 'AI provider unreachable', details: 'Network error' }, 502, origin);
+          }
+          
+          if (!aiResp.ok) {
+            const errorBody = await aiResp.text().catch(() => '');
+            console.error(`[AI] Provider returned ${aiResp.status}:`, errorBody);
+            return jsonResponse({ 
+              error: 'AI provider error', 
+              status: aiResp.status,
+              details: errorBody,
+              model: 'meta-llama/llama-4-scout-17b-16e-instruct'
+            }, 502, origin);
           }
 
-          const aiData = aiResp ? await aiResp.json().catch(() => null) : null;
+          const aiData = await aiResp.json().catch(() => null);
           let text = aiData?.choices?.[0]?.message?.content || '';
 
           if (text.includes('```')) {
