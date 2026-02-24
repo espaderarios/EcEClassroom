@@ -580,6 +580,10 @@ async function handleFlashcardSetsD1(request, url, env, origin = '*') {
     if (request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
       const { name, subject } = body;
+      // Extract just the icon filename, strip any path or extension
+      let icon = (body.icon || body.subject_icon || 'book')
+        .replace(/^icons\//, '')  // Remove 'icons/' prefix
+        .replace(/\.svg$/, '');   // Remove '.svg' extension
 
       if (!userId || !name) {
         return jsonResponse({ error: 'Missing required fields: userId, name' }, 400, origin);
@@ -613,42 +617,59 @@ async function handleFlashcardSetsD1(request, url, env, origin = '*') {
 
       const result = await db
         .prepare(
-          `INSERT INTO flashcard_sets (id, user_id, name, subject) 
-           VALUES (?, ?, ?, ?)`
+          `INSERT INTO flashcard_sets (id, user_id, name, subject, icon) 
+           VALUES (?, ?, ?, ?, ?)`
         )
-        .bind(id, userId, name, subject || 'General')
+        .bind(id, userId, name, subject || 'General', icon)
         .run();
 
       if (!result.success) {
         return jsonResponse({ error: 'Failed to create set' }, 500, origin);
       }
 
-      return jsonResponse({ id, user_id: userId, name, subject: subject || 'General' }, 201, origin);
+      return jsonResponse({ id, user_id: userId, name, subject: subject || 'General', icon }, 201, origin);
     }
 
     // PUT /api/flashcard-sets/:id - update set
     if (request.method === 'PUT' && setId) {
       const body = await request.json().catch(() => ({}));
       const { name, subject } = body;
+      // Extract just the icon filename, strip any path or extension
+      let icon = body.icon || body.subject_icon;
+      if (icon) {
+        icon = icon.replace(/^icons\//, '').replace(/\.svg$/, '');
+      }
 
       if (!name) {
         return jsonResponse({ error: 'name required' }, 400, origin);
       }
 
+      // Build dynamic update query based on provided fields
+      const updates = ['name = ?', 'subject = ?', 'updated_at = CURRENT_TIMESTAMP'];
+      const params = [name, subject || 'General'];
+      
+      if (icon) {
+        updates.splice(2, 0, 'icon = ?');
+        params.splice(2, 0, icon);
+      }
+
       const result = await db
         .prepare(
           `UPDATE flashcard_sets 
-           SET name = ?, subject = ?, updated_at = CURRENT_TIMESTAMP
+           SET ${updates.join(', ')}
            WHERE id = ? AND user_id = ?`
         )
-        .bind(name, subject || 'General', setId, userId)
+        .bind(...params, setId, userId)
         .run();
 
       if (!result.success) {
         return jsonResponse({ error: 'Failed to update set' }, 500, origin);
       }
 
-      return jsonResponse({ id: setId, user_id: userId, name, subject: subject || 'General' }, 200, origin);
+      const response = { id: setId, user_id: userId, name, subject: subject || 'General' };
+      if (icon) response.icon = icon;
+      
+      return jsonResponse(response, 200, origin);
     }
 
     // DELETE /api/flashcard-sets/:id - delete set
@@ -705,7 +726,8 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
               f.created_at,
               f.updated_at,
               fs.name as set_name,
-              fs.subject as subject_name
+              fs.subject as subject_name,
+              fs.icon as subject_icon
             FROM flashcards f
             LEFT JOIN flashcard_sets fs ON f.set_id = fs.id
             WHERE f.id = ? AND f.user_id = ?
@@ -718,12 +740,13 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
         }
         
         // Transform to frontend format
+        // Icon is stored as just the filename (e.g., 'book', 'science') not the path
         const enrichedCard = {
           id: card.id,
           type: 'card',
           subject_id: card.subject_name || 'General',
           subject_name: card.subject_name || 'General',
-          subject_icon: 'book',
+          subject_icon: card.subject_icon || 'book',
           set_id: card.set_id,
           set_name: card.set_name || 'Untitled Set',
           question: card.question,
@@ -739,7 +762,7 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
       }
 
       // GET all cards, optionally filtered by setId
-      // Join with flashcard_sets to get set_name and subject
+      // Join with flashcard_sets to get set_name, subject, and icon
       let query = `
         SELECT 
           f.id,
@@ -750,7 +773,8 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
           f.created_at,
           f.updated_at,
           fs.name as set_name,
-          fs.subject as subject_name
+          fs.subject as subject_name,
+          fs.icon as subject_icon
         FROM flashcards f
         LEFT JOIN flashcard_sets fs ON f.set_id = fs.id
         WHERE f.user_id = ?
@@ -767,12 +791,13 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
       const result = await db.prepare(query).bind(...params).all();
       
       // Transform to frontend format
+      // Icon is stored as just the filename (e.g., 'book', 'science') not the path
       const cards = (result.results || []).map(card => ({
         id: card.id,
         type: 'card',
         subject_id: card.subject_name || 'General',
         subject_name: card.subject_name || 'General',
-        subject_icon: 'book',
+        subject_icon: card.subject_icon || 'book',
         set_id: card.set_id,
         set_name: card.set_name || 'Untitled Set',
         question: card.question,
@@ -790,7 +815,7 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
     // POST /api/flashcards - create new card
     if (request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      let { set_id, question, answer, type, set_name, subject_name } = body;
+      let { set_id, question, answer, type, set_name, subject_name, subject_icon } = body;
 
       // Handle undefined/null values with fallbacks
       set_id = set_id || body.setId || `set_${Date.now()}_auto`;
@@ -798,6 +823,10 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
       answer = answer || body.back || 'Untitled answer';
       set_name = set_name || body.set_name || 'General Study Set';
       subject_name = subject_name || body.subject_name || 'General';
+      // Extract just the icon filename, strip any path prefix or .svg extension
+      subject_icon = (subject_icon || body.subject_icon || 'book')
+        .replace(/^icons\//, '')  // Remove 'icons/' prefix if present
+        .replace(/\.svg$/, '');   // Remove '.svg' extension if present
 
       // Better error reporting - show exactly what's missing
       const missing = [];
@@ -852,13 +881,13 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
           .first();
 
         if (!setExists) {
-          // Create the set
+          // Create the set with icon
           const createSetResult = await db
             .prepare(
-              `INSERT INTO flashcard_sets (id, user_id, name, subject) 
-               VALUES (?, ?, ?, ?)`
+              `INSERT INTO flashcard_sets (id, user_id, name, subject, icon) 
+               VALUES (?, ?, ?, ?, ?)`
             )
-            .bind(set_id, userId, set_name || 'Untitled Set', subject_name || 'General')
+            .bind(set_id, userId, set_name || 'Untitled Set', subject_name || 'General', subject_icon)
             .run();
 
           if (!createSetResult.success) {
