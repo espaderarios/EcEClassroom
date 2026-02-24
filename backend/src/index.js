@@ -581,7 +581,7 @@ async function handleFlashcardSetsD1(request, url, env, origin = '*') {
       const body = await request.json().catch(() => ({}));
       const { name, subject } = body;
       // Extract just the icon filename, strip any path or extension
-      let icon = (body.icon || body.subject_icon || 'book')
+      let icon = (body.icon || body.subject_icon || 'flashcard')
         .replace(/^icons\//, '')  // Remove 'icons/' prefix
         .replace(/\.svg$/, '');   // Remove '.svg' extension
 
@@ -746,7 +746,7 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
           type: 'card',
           subject_id: card.subject_name || 'General',
           subject_name: card.subject_name || 'General',
-          subject_icon: card.subject_icon || 'book',
+          subject_icon: card.subject_icon || 'flashcard',
           set_id: card.set_id,
           set_name: card.set_name || 'Untitled Set',
           question: card.question,
@@ -797,7 +797,7 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
         type: 'card',
         subject_id: card.subject_name || 'General',
         subject_name: card.subject_name || 'General',
-        subject_icon: card.subject_icon || 'book',
+        subject_icon: card.subject_icon || 'flashcard',
         set_id: card.set_id,
         set_name: card.set_name || 'Untitled Set',
         question: card.question,
@@ -824,7 +824,7 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
       set_name = set_name || body.set_name || 'General Study Set';
       subject_name = subject_name || body.subject_name || 'General';
       // Extract just the icon filename, strip any path prefix or .svg extension
-      subject_icon = (subject_icon || body.subject_icon || 'book')
+      subject_icon = (subject_icon || body.subject_icon || 'flashcard')
         .replace(/^icons\//, '')  // Remove 'icons/' prefix if present
         .replace(/\.svg$/, '');   // Remove '.svg' extension if present
 
