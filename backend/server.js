@@ -4,6 +4,9 @@ const cookieParser = require('cookie-parser');
 const fs = require('fs').promises;
 const path = require('path');
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const app = express();
 app.use(cors());
 app.use(cookieParser());
@@ -543,6 +546,180 @@ app.post('/api/generate-cards', async (req, res) => {
   } catch (error) {
     console.error('Generate cards error:', error);
     res.status(500).json({ error: 'Failed to generate cards', details: error.message });
+  }
+});
+
+// AI-powered card generation (standardized endpoint)
+app.post('/api/ai/generate', async (req, res) => {
+  const { topic, count = 5, prompt, text, rawText } = req.body;
+  const parsedCount = Number.isFinite(Number(count)) ? Number(count) : 5;
+  const cappedCount = Math.max(1, Math.min(20, Math.floor(parsedCount)));
+
+  const groqKey = process.env.GROQ_API_KEY;
+
+  if (!groqKey) {
+    return res.status(400).json({ error: 'AI key not configured. Set GROQ_API_KEY environment variable.' });
+  }
+
+  const safeTopic = topic && String(topic).trim() ? String(topic).trim() : 'the subject';
+  const systemPrompt = `You are a helpful assistant that converts study material into flashcards. Reply with valid JSON only: {"cards": [{"question":"Question text","answer":"Answer text"}]}. Create ${cappedCount} concise cards covering distinct points.`;
+  const userPrompt = prompt || text || `Create flashcard Q&A pairs about ${safeTopic}.`;
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${groqKey}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 800
+      })
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      console.error(`Groq API error ${response.status}:`, errorBody);
+      throw new Error(`Groq API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    let content = data?.choices?.[0]?.message?.content || '';
+
+    // Extract JSON from markdown code blocks if present
+    if (content.includes('```')) {
+      const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (match && match[1]) {
+        content = match[1];
+      }
+    }
+
+    const parsed = JSON.parse(content);
+    
+    if (Array.isArray(parsed.cards)) {
+      const cards = parsed.cards.slice(0, 20).map((c, i) => {
+        const questionRaw = typeof c.question === 'string' ? c.question.trim() : typeof c.front === 'string' ? c.front.trim() : '';
+        const answerRaw = typeof c.answer === 'string' ? c.answer.trim() : typeof c.back === 'string' ? c.back.trim() : '';
+        const questionClean = questionRaw && questionRaw.toLowerCase() !== 'undefined' ? questionRaw : '';
+        const answerClean = answerRaw && answerRaw.toLowerCase() !== 'undefined' ? answerRaw : '';
+        return {
+          id: c.id || `card_${Date.now()}_${i}`,
+          question: questionClean || `Question ${i + 1} about ${safeTopic}`,
+          answer: answerClean || `Key facts about ${safeTopic}.`
+        };
+      });
+      return res.json({ cards });
+    }
+
+    throw new Error('Invalid AI response format');
+  } catch (error) {
+    console.error('AI generation error:', error);
+    
+    // Return fallback cards instead of error
+    const fallbackCards = [];
+    for (let i = 0; i < cappedCount; i++) {
+      fallbackCards.push({
+        id: `card_${Date.now()}_${i}`,
+        question: `Question ${i + 1} about ${safeTopic}`,
+        answer: `Key facts about ${safeTopic}.`
+      });
+    }
+    
+    return res.json({ cards: fallbackCards });
+  }
+});
+
+// AI-powered quiz generation
+app.post('/api/ai/quiz', async (req, res) => {
+  const { topic = 'General knowledge', count = 5 } = req.body;
+  const cappedCount = Math.max(1, Math.min(20, count || 5));
+
+  const groqKey = process.env.GROQ_API_KEY;
+
+  if (!groqKey) {
+    return res.status(400).json({ error: 'AI key not configured. Set GROQ_API_KEY environment variable.' });
+  }
+
+  const systemPrompt = `You are a quiz generator. Generate multiple-choice quiz questions in strict JSON format.
+
+CRITICAL: Do NOT include letter prefixes (A), B), C), D)) or numbers (1., 2.) in the option text.
+
+Format: {"questions":[{"question":"What is X?","options":["First answer","Second answer","Third answer","Fourth answer"],"correct":"First answer"}]}
+
+Rules:
+- Provide exactly ${cappedCount} questions about ${topic}
+- Each option should be JUST the answer text, no prefixes
+- The "correct" field should be the EXACT TEXT of the correct option (not a letter)
+- Options must be concise, distinct, and accurate
+- Return ONLY valid JSON, no other text`;
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${groqKey}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: topic }
+        ],
+        temperature: 0.7,
+        max_tokens: 1200
+      })
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      console.error(`Groq API error ${response.status}:`, errorBody);
+      throw new Error(`Groq API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    let content = data?.choices?.[0]?.message?.content || '';
+
+    // Extract JSON from markdown code blocks if present
+    if (content.includes('```')) {
+      const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (match && match[1]) {
+        content = match[1];
+      }
+    }
+
+    const parsed = JSON.parse(content);
+    
+    if (Array.isArray(parsed.questions) && parsed.questions.length) {
+      return res.json({ questions: parsed.questions.slice(0, cappedCount) });
+    }
+
+    throw new Error('Invalid AI response format');
+  } catch (error) {
+    console.error('AI quiz generation error:', error);
+    
+    // Return fallback questions
+    const fallbackQuestions = Array.from({ length: cappedCount }).map((_, i) => {
+      const optionA = `${topic} - correct answer`;
+      return {
+        question: `Question ${i + 1} about ${topic}`,
+        options: [
+          optionA,
+          `${topic} - distractor 1`,
+          `${topic} - distractor 2`,
+          `${topic} - distractor 3`
+        ],
+        correct: optionA
+      };
+    });
+    
+    return res.json({ questions: fallbackQuestions });
   }
 });
 
