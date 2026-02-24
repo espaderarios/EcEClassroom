@@ -585,6 +585,30 @@ async function handleFlashcardSetsD1(request, url, env, origin = '*') {
         return jsonResponse({ error: 'Missing required fields: userId, name' }, 400, origin);
       }
 
+      // Auto-create the user if it doesn't exist (same as flashcards handler)
+      try {
+        const userExists = await db
+          .prepare(`SELECT id FROM users WHERE id = ?`)
+          .bind(userId)
+          .first();
+
+        if (!userExists) {
+          const email = userId.startsWith('google_') 
+            ? `${userId}@gmail.com` 
+            : `${userId}@local.dev`;
+
+          await db
+            .prepare(
+              `INSERT INTO users (id, email, name, provider, authenticated) 
+               VALUES (?, ?, ?, ?, ?)`
+            )
+            .bind(userId, email, userId, userId.startsWith('google_') ? 'google' : 'local', 1)
+            .run();
+        }
+      } catch (userError) {
+        console.error('Error checking/creating user in sets handler:', userError);
+      }
+
       const id = body.id || `set_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
       const result = await db
@@ -697,8 +721,19 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
       const body = await request.json().catch(() => ({}));
       const { set_id, question, answer, type, set_name, subject_name } = body;
 
-      if (!userId || !set_id || !question || !answer) {
-        return jsonResponse({ error: 'Missing required fields: userId, set_id, question, answer' }, 400, origin);
+      // Better error reporting - show exactly what's missing
+      const missing = [];
+      if (!userId) missing.push('userId (query param)');
+      if (!set_id) missing.push('set_id');
+      if (!question) missing.push('question');
+      if (!answer) missing.push('answer');
+
+      if (missing.length > 0) {
+        return jsonResponse({ 
+          error: 'Missing required fields', 
+          missing: missing,
+          received: { userId, set_id, question: question ? 'present' : 'missing', answer: answer ? 'present' : 'missing' }
+        }, 400, origin);
       }
 
       // Auto-create the user if it doesn't exist
