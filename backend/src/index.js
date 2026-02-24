@@ -719,14 +719,21 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
     // POST /api/flashcards - create new card
     if (request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const { set_id, question, answer, type, set_name, subject_name } = body;
+      let { set_id, question, answer, type, set_name, subject_name } = body;
+
+      // Handle undefined/null values with fallbacks
+      set_id = set_id || body.setId || `set_${Date.now()}_auto`;
+      question = question || body.front || 'Untitled question';
+      answer = answer || body.back || 'Untitled answer';
+      set_name = set_name || body.set_name || 'General Study Set';
+      subject_name = subject_name || body.subject_name || 'General';
 
       // Better error reporting - show exactly what's missing
       const missing = [];
       if (!userId) missing.push('userId (query param)');
-      if (!set_id) missing.push('set_id');
-      if (!question) missing.push('question');
-      if (!answer) missing.push('answer');
+      if (!set_id || set_id === 'undefined' || set_id === 'null') missing.push('set_id');
+      if (!question || question === 'undefined' || question === 'null') missing.push('question');
+      if (!answer || answer === 'undefined' || answer === 'null') missing.push('answer');
 
       if (missing.length > 0) {
         return jsonResponse({ 
