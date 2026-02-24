@@ -298,8 +298,14 @@ window.isAuthenticated = getUser()?.authenticated === true;
 
   async function syncToBackend(item, method = 'POST') {
     const user = getUser();
-    if (!user || !user.authenticated) return;
-    if (!item || !item.id) return;
+    if (!user || !user.authenticated) {
+      console.log('[dataSdk] Sync skipped: User not authenticated');
+      return;
+    }
+    if (!item || !item.id) {
+      console.log('[dataSdk] Sync skipped: Invalid item');
+      return;
+    }
 
     try {
       const backendUrl = getBackendUrl();
@@ -320,9 +326,19 @@ window.isAuthenticated = getUser()?.authenticated === true;
         requestInit.body = JSON.stringify({ ...item, userId: user.id });
       }
 
-      await fetch(endpoint, requestInit);
+      console.log(`[dataSdk] Syncing ${method} to backend:`, endpoint);
+      const response = await fetch(endpoint, requestInit);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[dataSdk] Backend sync failed (${response.status}):`, errorText);
+        throw new Error(`Backend returned ${response.status}: ${errorText}`);
+      }
+      
+      console.log(`[dataSdk] Successfully synced ${method} for item:`, item.id);
     } catch (error) {
-      console.log('Backend sync failed:', error);
+      console.error('[dataSdk] Backend sync error:', error);
+      throw error; // Re-throw so caller can handle it
     }
   }
 
@@ -425,8 +441,18 @@ window.isAuthenticated = getUser()?.authenticated === true;
       save();
       notify();
       
-      // Sync to backend asynchronously
-      syncToBackend(newItem, 'POST').catch(err => console.log('Create sync failed:', err));
+      // Sync to backend asynchronously but log errors
+      syncToBackend(newItem, 'POST')
+        .then(() => {
+          console.log('[dataSdk] Card created and synced successfully');
+        })
+        .catch(err => {
+          console.error('[dataSdk] Create sync failed:', err);
+          // Show error to user
+          if (window.showToast) {
+            window.showToast('Warning: Card saved locally but not synced to cloud. Please check your connection.');
+          }
+        });
 
       return Promise.resolve({ isOk: true, item: newItem });
     },
