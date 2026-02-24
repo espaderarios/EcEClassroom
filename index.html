@@ -358,50 +358,45 @@ window.isAuthenticated = getUser()?.authenticated === true;
       load();
       notify();
 
-      // Defer remote sync work so the initial render is not blocked
+      // Load from backend FIRST to ensure we have all user data
       const user = getUser();
       if (user && user.authenticated && !isSyncing) {
         isSyncing = true;
-        (async () => {
-          try {
-            const backendDataRaw = await loadFromBackend();
-            const backendData = Array.isArray(backendDataRaw) ? backendDataRaw : [];
+        try {
+          // Load from backend first
+          const backendDataRaw = await loadFromBackend();
+          const backendData = Array.isArray(backendDataRaw) ? backendDataRaw : [];
 
-            const localIds = new Set(data.map(item => item && item.id).filter(Boolean));
-            let merged = false;
+          console.log('[dataSdk] Loaded from backend:', backendData.length, 'items');
 
-            backendData.forEach(item => {
-              if (item && item.id && !localIds.has(item.id)) {
-                data.push(item);
-                localIds.add(item.id);
-                merged = true;
+          if (backendData.length > 0) {
+            // Replace local data with backend data for this user
+            data = backendData;
+            save();
+            notify();
+            console.log('[dataSdk] Synced', backendData.length, 'items from backend');
+          }
+
+          // Then upload any local-only items that don't exist on backend
+          const backendIds = new Set(backendData.map(item => item && item.id).filter(Boolean));
+          const pendingUploads = data
+            .filter(item => item && item.id && !backendIds.has(item.id))
+            .map(item => syncToBackend(item, 'POST'));
+
+          if (pendingUploads.length > 0) {
+            console.log('[dataSdk] Uploading', pendingUploads.length, 'local-only items');
+            Promise.allSettled(pendingUploads).then(results => {
+              const failures = results.filter(result => result.status === 'rejected');
+              if (failures.length) {
+                console.log('[dataSdk] Create sync had', failures.length, 'failures');
               }
             });
-
-            if (merged) {
-              save();
-              notify();
-            }
-
-            const backendIds = new Set(backendData.map(item => item && item.id).filter(Boolean));
-            const pendingUploads = data
-              .filter(item => item && item.id && !backendIds.has(item.id))
-              .map(item => syncToBackend(item, 'POST'));
-
-            if (pendingUploads.length) {
-              Promise.allSettled(pendingUploads).then(results => {
-                const failures = results.filter(result => result.status === 'rejected');
-                if (failures.length) {
-                  console.log('Create sync failed:', failures.map(f => f.reason));
-                }
-              });
-            }
-          } catch (error) {
-            console.log('Initial sync failed:', error);
-          } finally {
-            isSyncing = false;
           }
-        })();
+        } catch (error) {
+          console.error('[dataSdk] Initial sync failed:', error);
+        } finally {
+          isSyncing = false;
+        }
       }
 
       return { isOk: true };
