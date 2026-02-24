@@ -10,7 +10,7 @@ compatibility_date = "2026-01-21"
 [[d1_databases]]
 binding = "DB"
 database_name = "eclassroom"
-database_id = "YOUR_DB_ID"
+database_id = "5350ff0e-01e6-4bb1-94e8-56d8f4260149"
 
 # KV Namespaces for persistent storage
 [[kv_namespaces]]
