@@ -190,12 +190,23 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
+      
+      // Prevent caching non-http(s) requests (e.g., chrome-extension://)
+      const url = new URL(event.request.url);
+      if (!url.protocol.startsWith('http')) {
+        return fetch(event.request).catch(() => caches.match('/index.html'));
+      }
+      
       return fetch(event.request)
         .then(response => {
           // cache fetched assets (basic strategy)
           if (response && response.status === 200 && response.type === 'basic') {
             const responseClone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseClone).catch(err => {
+                console.warn('Cache put failed:', err.message);
+              });
+            });
           }
           return response;
         })
