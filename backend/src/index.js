@@ -540,6 +540,114 @@ async function handleLibraryEndpoint(request, url, env, origin = '*') {
   return jsonResponse({ error: 'Not found' }, 404, origin);
 }
 
+async function handleFlashcardSetsD1(request, url, env, origin = '*') {
+  const { pathname, searchParams } = url;
+  const userId = searchParams.get('userId');
+  const idMatch = pathname.match(/\/api\/flashcard-sets\/([^/?]+)/);
+  const setId = idMatch ? idMatch[1] : null;
+
+  if (!env.DB) {
+    return jsonResponse({ error: 'Database not available' }, 503, origin);
+  }
+
+  const db = env.DB;
+
+  try {
+    // GET /api/flashcard-sets - get all sets for user
+    if (request.method === 'GET') {
+      if (!userId) {
+        return jsonResponse({ error: 'userId required' }, 400, origin);
+      }
+
+      if (setId) {
+        // GET specific set
+        const set = await db
+          .prepare(`SELECT * FROM flashcard_sets WHERE id = ? AND user_id = ?`)
+          .bind(setId, userId)
+          .first();
+        return jsonResponse(set || { error: 'Not found' }, set ? 200 : 404, origin);
+      }
+
+      // GET all sets
+      const result = await db
+        .prepare(`SELECT * FROM flashcard_sets WHERE user_id = ? ORDER BY created_at DESC`)
+        .bind(userId)
+        .all();
+      return jsonResponse(result.results || [], 200, origin);
+    }
+
+    // POST /api/flashcard-sets - create new set
+    if (request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { name, subject } = body;
+
+      if (!userId || !name) {
+        return jsonResponse({ error: 'Missing required fields: userId, name' }, 400, origin);
+      }
+
+      const id = body.id || `set_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+      const result = await db
+        .prepare(
+          `INSERT INTO flashcard_sets (id, user_id, name, subject) 
+           VALUES (?, ?, ?, ?)`
+        )
+        .bind(id, userId, name, subject || 'General')
+        .run();
+
+      if (!result.success) {
+        return jsonResponse({ error: 'Failed to create set' }, 500, origin);
+      }
+
+      return jsonResponse({ id, user_id: userId, name, subject: subject || 'General' }, 201, origin);
+    }
+
+    // PUT /api/flashcard-sets/:id - update set
+    if (request.method === 'PUT' && setId) {
+      const body = await request.json().catch(() => ({}));
+      const { name, subject } = body;
+
+      if (!name) {
+        return jsonResponse({ error: 'name required' }, 400, origin);
+      }
+
+      const result = await db
+        .prepare(
+          `UPDATE flashcard_sets 
+           SET name = ?, subject = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND user_id = ?`
+        )
+        .bind(name, subject || 'General', setId, userId)
+        .run();
+
+      if (!result.success) {
+        return jsonResponse({ error: 'Failed to update set' }, 500, origin);
+      }
+
+      return jsonResponse({ id: setId, user_id: userId, name, subject: subject || 'General' }, 200, origin);
+    }
+
+    // DELETE /api/flashcard-sets/:id - delete set
+    if (request.method === 'DELETE' && setId) {
+      const result = await db
+        .prepare(`DELETE FROM flashcard_sets WHERE id = ? AND user_id = ?`)
+        .bind(setId, userId)
+        .run();
+
+      if (!result.success) {
+        return jsonResponse({ error: 'Failed to delete set' }, 500, origin);
+      }
+
+      return jsonResponse({ ok: true }, 200, origin);
+    }
+
+    return jsonResponse({ error: 'Method not allowed' }, 405, origin);
+  } catch (error) {
+    console.error('D1 flashcard sets error:', error);
+    return jsonResponse({ error: error.message }, 500, origin);
+  }
+}
+
 async function handleFlashcardsD1(request, url, env, origin = '*') {
   const { pathname, searchParams } = url;
   const userId = searchParams.get('userId');
@@ -587,10 +695,36 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
     // POST /api/flashcards - create new card
     if (request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const { set_id, question, answer, type } = body;
+      const { set_id, question, answer, type, set_name, subject_name } = body;
 
       if (!userId || !set_id || !question || !answer) {
         return jsonResponse({ error: 'Missing required fields: userId, set_id, question, answer' }, 400, origin);
+      }
+
+      // Auto-create the set if it doesn't exist
+      try {
+        const setExists = await db
+          .prepare(`SELECT id FROM flashcard_sets WHERE id = ? AND user_id = ?`)
+          .bind(set_id, userId)
+          .first();
+
+        if (!setExists) {
+          // Create the set
+          const createSetResult = await db
+            .prepare(
+              `INSERT INTO flashcard_sets (id, user_id, name, subject) 
+               VALUES (?, ?, ?, ?)`
+            )
+            .bind(set_id, userId, set_name || 'Untitled Set', subject_name || 'General')
+            .run();
+
+          if (!createSetResult.success) {
+            return jsonResponse({ error: 'Failed to create set' }, 500, origin);
+          }
+        }
+      } catch (setError) {
+        console.error('Error checking/creating set:', setError);
+        return jsonResponse({ error: 'Failed to validate set' }, 500, origin);
       }
 
       const id = body.id || `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -1250,6 +1384,10 @@ Rules:
 
       if (pathname.startsWith('/api/library')) {
         return handleLibraryEndpoint(request, url, env, origin);
+      }
+
+      if (pathname.startsWith('/api/flashcard-sets')) {
+        return handleFlashcardSetsD1(request, url, env, origin);
       }
 
       if (pathname.startsWith('/api/flashcards')) {
