@@ -74,7 +74,7 @@ $setBody = @{
     icon = "biology"
     visibility = "private"
 }
-$setResponse = Test-Endpoint -Method Post -Endpoint "/api/flashcard-sets?userId=$testUserId" -Body $setBody -Description "Creating a test flashcard set"
+Test-Endpoint -Method Post -Endpoint "/api/flashcard-sets?userId=$testUserId" -Body $setBody -Description "Creating a test flashcard set"
 
 # Test 3: Create Flashcard
 Write-Host "[Test 3/5] Create Flashcard" -ForegroundColor Blue
