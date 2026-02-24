@@ -693,27 +693,98 @@ async function handleFlashcardsD1(request, url, env, origin = '*') {
       }
 
       if (cardId) {
-        // GET specific card
+        // GET specific card with set info
         const card = await db
-          .prepare(`SELECT * FROM flashcards WHERE id = ? AND user_id = ?`)
+          .prepare(`
+            SELECT 
+              f.id,
+              f.user_id,
+              f.set_id,
+              f.question,
+              f.answer,
+              f.created_at,
+              f.updated_at,
+              fs.name as set_name,
+              fs.subject as subject_name
+            FROM flashcards f
+            LEFT JOIN flashcard_sets fs ON f.set_id = fs.id
+            WHERE f.id = ? AND f.user_id = ?
+          `)
           .bind(cardId, userId)
           .first();
-        return jsonResponse(card || { error: 'Not found' }, card ? 200 : 404, origin);
+        
+        if (!card) {
+          return jsonResponse({ error: 'Not found' }, 404, origin);
+        }
+        
+        // Transform to frontend format
+        const enrichedCard = {
+          id: card.id,
+          type: 'card',
+          subject_id: card.subject_name || 'General',
+          subject_name: card.subject_name || 'General',
+          subject_icon: 'book',
+          set_id: card.set_id,
+          set_name: card.set_name || 'Untitled Set',
+          question: card.question,
+          answer: card.answer,
+          created_at: card.created_at,
+          updated_at: card.updated_at,
+          user_id: card.user_id,
+          visibility: 'private',
+          owner_id: card.user_id
+        };
+        
+        return jsonResponse(enrichedCard, 200, origin);
       }
 
       // GET all cards, optionally filtered by setId
-      let query = `SELECT * FROM flashcards WHERE user_id = ?`;
+      // Join with flashcard_sets to get set_name and subject
+      let query = `
+        SELECT 
+          f.id,
+          f.user_id,
+          f.set_id,
+          f.question,
+          f.answer,
+          f.created_at,
+          f.updated_at,
+          fs.name as set_name,
+          fs.subject as subject_name
+        FROM flashcards f
+        LEFT JOIN flashcard_sets fs ON f.set_id = fs.id
+        WHERE f.user_id = ?
+      `;
       const params = [userId];
 
       if (setId) {
-        query += ` AND set_id = ?`;
+        query += ` AND f.set_id = ?`;
         params.push(setId);
       }
 
-      query += ` ORDER BY created_at DESC`;
+      query += ` ORDER BY f.created_at DESC`;
 
       const result = await db.prepare(query).bind(...params).all();
-      return jsonResponse(result.results || [], 200, origin);
+      
+      // Transform to frontend format
+      const cards = (result.results || []).map(card => ({
+        id: card.id,
+        type: 'card',
+        subject_id: card.subject_name || 'General',
+        subject_name: card.subject_name || 'General',
+        subject_icon: 'book',
+        set_id: card.set_id,
+        set_name: card.set_name || 'Untitled Set',
+        question: card.question,
+        answer: card.answer,
+        created_at: card.created_at,
+        updated_at: card.updated_at,
+        user_id: card.user_id,
+        visibility: 'private',
+        owner_id: card.user_id
+      }));
+      
+      return jsonResponse(cards, 200, origin);
     }
 
     // POST /api/flashcards - create new card
