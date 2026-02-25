@@ -573,6 +573,11 @@ function showCacheStatus(message, type = 'info') {
 if ('serviceWorker' in navigator) {
   const SW_RELOAD_FLAG_KEY = 'sw_last_reloaded_version';
   let isReloadingFromSw = false;
+  const announceUpdating = () => {
+    if (typeof showCacheStatus === 'function') {
+      showCacheStatus('Update found. Reloading…', 'info');
+    }
+  };
 
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data && event.data.type === 'cache-status') {
@@ -586,6 +591,7 @@ if ('serviceWorker' in navigator) {
       if (previousVersion !== nextVersion && !isReloadingFromSw) {
         isReloadingFromSw = true;
         sessionStorage.setItem(SW_RELOAD_FLAG_KEY, nextVersion);
+        announceUpdating();
         window.location.reload();
       }
     }
@@ -594,6 +600,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (isReloadingFromSw) return;
     isReloadingFromSw = true;
+    announceUpdating();
     window.location.reload();
   });
 }
