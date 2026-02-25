@@ -571,10 +571,30 @@ function showCacheStatus(message, type = 'info') {
 
 // Listen for cache updates
 if ('serviceWorker' in navigator) {
+  const SW_RELOAD_FLAG_KEY = 'sw_last_reloaded_version';
+  let isReloadingFromSw = false;
+
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data && event.data.type === 'cache-status') {
       showCacheStatus(event.data.message, event.data.status);
     }
+
+    if (event.data && event.data.type === 'SW_UPDATE_ACTIVATED') {
+      const nextVersion = String(event.data.version || 'unknown');
+      const previousVersion = sessionStorage.getItem(SW_RELOAD_FLAG_KEY);
+
+      if (previousVersion !== nextVersion && !isReloadingFromSw) {
+        isReloadingFromSw = true;
+        sessionStorage.setItem(SW_RELOAD_FLAG_KEY, nextVersion);
+        window.location.reload();
+      }
+    }
+  });
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (isReloadingFromSw) return;
+    isReloadingFromSw = true;
+    window.location.reload();
   });
 }
 </script>
@@ -658,7 +678,34 @@ if ('serviceWorker' in navigator) {
   <!-- Service Worker Script -->
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js');
+      navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' }).then(registration => {
+        const requestSkipWaiting = () => {
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        };
+
+        if (registration.waiting) {
+          requestSkipWaiting();
+        }
+
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (!newWorker) return;
+
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              requestSkipWaiting();
+            }
+          });
+        });
+
+        registration.update().catch(() => {});
+        setInterval(() => registration.update().catch(() => {}), 10 * 60 * 1000);
+        window.addEventListener('focus', () => registration.update().catch(() => {}));
+      }).catch(err => {
+        console.warn('Service worker registration failed', err);
+      });
     }
   </script>
  </body>

@@ -1,4 +1,5 @@
 const CACHE_NAME = 'ec-eclassroom-v9';
+const SW_VERSION = '2026-02-25-1';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -169,23 +170,41 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.map(k => {
-          if (k !== CACHE_NAME) return caches.delete(k);
-        })
-      )
-    )
-  );
-  self.clients.claim();
-  // notify clients that SW is active
-  self.clients.matchAll().then(clients => {
-    clients.forEach(c => c.postMessage({ type: 'cache-status', message: 'Service worker active', status: 'success' }));
-  });
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys.map(k => {
+        if (k !== CACHE_NAME) return caches.delete(k);
+        return Promise.resolve();
+      })
+    );
+
+    await self.clients.claim();
+
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    clients.forEach(c => {
+      c.postMessage({ type: 'cache-status', message: 'Service worker active', status: 'success' });
+      c.postMessage({ type: 'SW_UPDATE_ACTIVATED', version: SW_VERSION });
+    });
+  })());
 });
 
 self.addEventListener('fetch', event => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put('./index.html', responseClone).catch(() => {});
+          });
+          return response;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
   // Try cache first, then network
   event.respondWith(
     caches.match(event.request).then(cached => {
@@ -217,6 +236,10 @@ self.addEventListener('fetch', event => {
 
 self.addEventListener('message', event => {
   if (!event.data) return;
+  if (event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
   if (event.data.type === 'CLEAR_CACHE') {
     caches.delete(CACHE_NAME).then(() => {
       self.clients.matchAll().then(clients => {
