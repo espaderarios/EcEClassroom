@@ -593,9 +593,8 @@ if ('serviceWorker' in navigator) {
         </h1>
       </div>
       
-      <div class="flex gap-md" style="display: flex; gap: var(--spacing-md); align-items: center;">
-        <!-- Settings Button -->
-        <button id="openSettingsBtn" class="btn-icon" style="background: transparent; color: var(--text);">
+      <div id="settingsControl" class="flex gap-md" style="display: flex; gap: 8px; align-items: center;">
+        <button id="openSettingsBtn" class="btn-icon" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: #ffffff; border: 1px solid var(--primary-dark); border-radius: 12px; padding: 8px 12px; box-shadow: var(--shadow-md); font-weight: 700;" title="Open settings">
           ⚙️
         </button>
       </div>

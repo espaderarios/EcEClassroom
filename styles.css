@@ -1726,6 +1726,40 @@ label {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
+
+.browse-study-card {
+  width: 100%;
+  max-width: min(100%, 960px);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 640px) {
+  .browse-study-card {
+    max-width: 100%;
+  }
+
+  .browse-study-card .card-inner {
+    min-height: min(calc(100dvh - 250px), 620px) !important;
+  }
+
+  .browse-study-card .card-front,
+  .browse-study-card .card-back {
+    padding: 1rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .browse-study-card .card-inner {
+    min-height: min(calc(100dvh - 280px), 700px) !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .browse-study-card .card-inner {
+    min-height: min(calc(100dvh - 300px), 760px) !important;
+  }
+}
     
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(20px); }
