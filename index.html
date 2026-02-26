@@ -155,93 +155,98 @@ function migrateLocalAccountData(oldId, newId) {
 const urlParams = new URLSearchParams(window.location.search);
 const oauthStatus = urlParams.get('oauth_login');
 
-async function hydrateUserFromSession() {
-  try {
-    const response = await fetch(`${getBackendUrl()}/auth/me`, {
-      credentials: 'include'
-    });
+if (oauthStatus === 'success') {
+  const userId = urlParams.get('user_id');
+  const userName = urlParams.get('user_name');
+  const userEmail = urlParams.get('user_email');
+  const googleId = urlParams.get('google_id');
+  const picture = urlParams.get('picture');
 
-    if (!response.ok) {
-      return false;
-    }
-
-    const profile = await response.json();
-    if (!profile || !profile.id) {
-      return false;
-    }
-
+  if (userId) {
     const pendingLinkUserId = localStorage.getItem('pending_google_link_user');
-    if (pendingLinkUserId && pendingLinkUserId !== profile.id) {
-      migrateLocalAccountData(pendingLinkUserId, profile.id);
-      fetch(`${getBackendUrl()}/auth/link-google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ localUserId: pendingLinkUserId, googleUserId: profile.id })
-      }).catch(err => console.log('Link sync failed:', err));
-      localStorage.removeItem('pending_google_link_user');
+
+    if (pendingLinkUserId && pendingLinkUserId !== userId) {
+      migrateLocalAccountData(pendingLinkUserId, userId);
     }
 
     const googleUser = {
-      id: profile.id,
-      name: profile.name || profile.email,
-      email: profile.email || '',
-      googleId: profile.googleId || profile.id,
-      googleEmail: profile.email || '',
-      picture: profile.picture || null,
+      id: userId,
+      name: userName || userEmail,
+      email: userEmail,
+      googleId: googleId || userId,
+      googleEmail: userEmail,
+      picture: picture || null,
       provider: 'google',
       authenticated: true
     };
 
+    if (pendingLinkUserId) {
+      googleUser.linkedUserId = pendingLinkUserId;
+
+      fetch(`${getBackendUrl()}/auth/link-google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ localUserId: pendingLinkUserId, googleUserId: userId })
+      }).catch(err => console.log('Link sync failed:', err));
+
+      localStorage.removeItem('pending_google_link_user');
+    }
+
     setUser(googleUser);
 
-    const studentProfile = JSON.parse(localStorage.getItem(`student_profile::${profile.id}`) || '{}');
-    localStorage.setItem(`student_profile::${profile.id}`, JSON.stringify({
+    const studentProfile = JSON.parse(localStorage.getItem(`student_profile::${userId}`) || '{}');
+    const updatedStudentProfile = {
       ...studentProfile,
-      name: googleUser.name || studentProfile.name || '',
-      email: googleUser.email || studentProfile.email || '',
-      googleId: googleUser.googleId,
-      googleEmail: googleUser.googleEmail,
-      profilePictureUrl: googleUser.picture || studentProfile.profilePictureUrl,
-      id: profile.id
-    }));
+      name: userName || studentProfile.name || '',
+      email: userEmail || studentProfile.email || '',
+      googleId: googleId || userId,
+      googleEmail: userEmail,
+      profilePictureUrl: picture || studentProfile.profilePictureUrl,
+      id: userId
+    };
+    localStorage.setItem(`student_profile::${userId}`, JSON.stringify(updatedStudentProfile));
 
-    const teacherProfile = JSON.parse(localStorage.getItem(`teacherProfile::${profile.id}`) || '{}');
-    localStorage.setItem(`teacherProfile::${profile.id}`, JSON.stringify({
+    const teacherProfile = JSON.parse(localStorage.getItem(`teacherProfile::${userId}`) || '{}');
+    const updatedTeacherProfile = {
       ...teacherProfile,
-      name: googleUser.name || teacherProfile.name || '',
-      email: googleUser.email || teacherProfile.email || '',
-      googleId: googleUser.googleId,
-      googleEmail: googleUser.googleEmail,
-      profilePictureUrl: googleUser.picture || teacherProfile.profilePictureUrl,
-      id: profile.id
-    }));
+      name: userName || teacherProfile.name || '',
+      email: userEmail || teacherProfile.email || '',
+      googleId: googleId || userId,
+      googleEmail: userEmail,
+      profilePictureUrl: picture || teacherProfile.profilePictureUrl,
+      id: userId
+    };
+    localStorage.setItem(`teacherProfile::${userId}`, JSON.stringify(updatedTeacherProfile));
 
     window.currentStudent = {
-      name: googleUser.name || '',
-      id: profile.id,
-      email: googleUser.email || ''
+      name: userName || updatedStudentProfile.name || '',
+      id: userId,
+      email: userEmail
     };
     localStorage.setItem('currentStudent', JSON.stringify(window.currentStudent));
-    localStorage.setItem('currentTeacherId', profile.id);
-    return true;
-  } catch (error) {
-    console.warn('Session hydrate failed:', error);
-    return false;
-  }
-}
 
-if (oauthStatus === 'success') {
-  hydrateUserFromSession().finally(() => {
+    window.currentTeacher = {
+      name: userName || updatedTeacherProfile.name || '',
+      id: userId,
+      email: userEmail
+    };
+    localStorage.setItem('currentTeacherId', userId);
+
     window.history.replaceState({}, document.title, window.location.pathname);
-  });
+  }
 }
 
 if (!getUser()) {
   const authFlagMatch = document.cookie.match(/google_authenticated=([^;]+)/);
 
   if (authFlagMatch && authFlagMatch[1] === 'true') {
-    hydrateUserFromSession().catch(() => {});
+    setUser({
+      id: 'google_user_' + Date.now(),
+      name: 'Google User',
+      email: '',
+      provider: 'google',
+      authenticated: true
+    });
   }
 }
 
@@ -306,15 +311,15 @@ window.isAuthenticated = getUser()?.authenticated === true;
       const backendUrl = getBackendUrl();
       const shouldTargetItem = method === 'DELETE' || method === 'PUT' || method === 'PATCH';
       
-      let endpoint = `${backendUrl}/api/flashcards`;
+      // Add userId to query params for all requests
+      let endpoint = `${backendUrl}/api/flashcards?userId=${encodeURIComponent(user.id)}`;
       if (shouldTargetItem) {
-        endpoint = `${backendUrl}/api/flashcards/${encodeURIComponent(item.id)}`;
+        endpoint = `${backendUrl}/api/flashcards/${encodeURIComponent(item.id)}?userId=${encodeURIComponent(user.id)}`;
       }
 
       const requestInit = {
         method: method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
+        headers: { 'Content-Type': 'application/json' }
       };
 
       if (method !== 'DELETE') {
@@ -343,7 +348,7 @@ window.isAuthenticated = getUser()?.authenticated === true;
     
     try {
       const backendUrl = getBackendUrl();
-      const response = await fetch(`${backendUrl}/api/flashcards`, { credentials: 'include' });
+      const response = await fetch(`${backendUrl}/api/flashcards?userId=${encodeURIComponent(user.id)}`);
       if (!response.ok) return [];
       
       const items = await response.json();
@@ -601,6 +606,8 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
+  <script src="tailwindcss.js"></script>
+
   <style>@view-transition { navigation: auto; }</style>
  </head>
  <body class="h-full" id="app-body">
@@ -675,5 +682,38 @@ if ('serviceWorker' in navigator) {
     }
   </script>
 
+  <!-- Service Worker Script -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' }).then(registration => {
+        const requestSkipWaiting = () => {
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        };
+
+        if (registration.waiting) {
+          requestSkipWaiting();
+        }
+
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (!newWorker) return;
+
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              requestSkipWaiting();
+            }
+          });
+        });
+
+        registration.update().catch(() => {});
+        setInterval(() => registration.update().catch(() => {}), 10 * 60 * 1000);
+        window.addEventListener('focus', () => registration.update().catch(() => {}));
+      }).catch(err => {
+        console.warn('Service worker registration failed', err);
+      });
+    }
+  </script>
  </body>
  </html>
