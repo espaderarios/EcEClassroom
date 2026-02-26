@@ -24,6 +24,7 @@
   --surface-dark: #1f2937;
   --surface-hover: #e5e7eb;
   --surface-hover-dark: #374151;
+  --surface-lively: #47f6fc;
 
   /* Text Colors */
   --text: #111827;
@@ -1419,6 +1420,10 @@ button .app-icon {
   transition: transform 0.1s ease;
 }
 
+.quiz-answer-option {
+  white-space: normal;
+}
+
 /* Mobile navigation improvements */
 .bottom-nav {
   position: fixed;
@@ -1869,6 +1874,62 @@ label {
     
     .card-back {
       transform: rotateY(180deg);
+    }
+
+    .study-card-3d .study-card-inner {
+      transition: transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1);
+      will-change: transform;
+    }
+
+    .study-card-3d .card-front,
+    .study-card-3d .card-back {
+      transition: opacity 0.45s var(--ease-out), filter 0.45s var(--ease-out);
+      will-change: opacity, filter;
+    }
+
+    .study-card-3d .card-front {
+      opacity: 1;
+      filter: blur(0);
+    }
+
+    .study-card-3d .card-back {
+      opacity: 0;
+      filter: blur(2px);
+    }
+
+    .study-card-3d .study-card-inner.flipped .card-front {
+      opacity: 0;
+      filter: blur(2px);
+    }
+
+    .study-card-3d .study-card-inner.flipped .card-back {
+      opacity: 1;
+      filter: blur(0);
+    }
+
+    .study-card-heading {
+      margin: 0;
+      transform: translateY(0);
+      transition: transform 0.45s var(--ease-out), opacity 0.45s var(--ease-out);
+    }
+
+    .study-card-3d .study-card-inner.flipped .card-back .study-card-heading {
+      animation: studyHeadingReveal 0.5s var(--ease-out);
+    }
+
+    .study-card-3d .study-card-inner:not(.flipped) .card-front .study-card-heading {
+      animation: studyHeadingReveal 0.5s var(--ease-out);
+    }
+
+    @keyframes studyHeadingReveal {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
     
     .category-card {
