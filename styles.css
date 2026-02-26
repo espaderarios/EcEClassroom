@@ -1179,28 +1179,44 @@ button .app-icon {
 
 .home-tabs {
   display: flex;
+  justify-content: flex-start;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm);
   border-radius: 16px;
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: inset 0 1px 2px rgba(17, 24, 39, 0.04);
+  overflow-x: auto;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+}
+
+@media (min-width: 768px) {
+  .home-tabs {
+    justify-content: center;
+  }
+}
+
+.home-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .home-tab-btn {
-  flex: 1;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--spacing-sm);
   border: none;
   border-radius: 12px;
+  min-width: max-content;
   padding: 12px;
   font-weight: var(--font-weight-semibold);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   transition: var(--transition-all);
+  white-space: nowrap;
 }
 
 .home-tab-btn:hover {
@@ -1222,6 +1238,12 @@ button .app-icon {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+  transition: opacity var(--duration-150) var(--ease-out), transform var(--duration-150) var(--ease-out);
+}
+
+.home-tab-panel.is-switching {
+  opacity: 0.7;
+  transform: translateY(4px);
 }
 
 .home-panel-card {
@@ -1372,12 +1394,15 @@ button .app-icon {
 .bottom-nav {
   position: fixed;
   bottom: 0;
-  left: 0;
-  right: 0;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(100%, 640px);
   height: auto;
   background: var(--card-bg);
   box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.1);
   display: flex;
+  justify-content: center;
   z-index: 2000;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
