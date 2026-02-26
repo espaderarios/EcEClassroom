@@ -71,16 +71,16 @@
   --font-weight-bold: 700;
   --font-weight-extrabold: 800;
 
-  /* Font sizes - Mobile first (min 6px, max 16px) */
-  --font-size: 14px;
-  --font-size-xs: 6px;
-  --font-size-sm: 10px;
-  --font-size-base: 14px;
-  --font-size-lg: 15px;
-  --font-size-xl: 16px;
-  --font-size-2xl: 16px;
-  --font-size-3xl: 16px;
-  --font-size-4xl: 16px;
+  /* Font sizes - fluid and screen-aware */
+  --font-size: clamp(13px, 0.3vw + 12px, 16px);
+  --font-size-xs: clamp(10px, 0.2vw + 9px, 12px);
+  --font-size-sm: clamp(11px, 0.25vw + 10px, 13px);
+  --font-size-base: clamp(13px, 0.35vw + 12px, 16px);
+  --font-size-lg: clamp(14px, 0.45vw + 12px, 18px);
+  --font-size-xl: clamp(15px, 0.6vw + 12px, 20px);
+  --font-size-2xl: clamp(18px, 0.8vw + 15px, 24px);
+  --font-size-3xl: clamp(22px, 1.1vw + 17px, 30px);
+  --font-size-4xl: clamp(26px, 1.6vw + 18px, 38px);
   
   /* Line heights */
   --line-height-tight: 1.25;
@@ -107,6 +107,12 @@
   --radius-2xl: 24px;
   --radius-full: 9999px;
   --button-radius: 999px;
+  --button-padding-y: clamp(10px, 1.1vw, 14px);
+  --button-padding-x: clamp(14px, 2vw, 28px);
+  --button-min-size: clamp(40px, 5.5vw, 48px);
+
+  --icon-inline-size-min: 14px;
+  --icon-inline-size-max: 160px;
 
   /* Brand gradients */
   --brand-gradient-start: #7687ff;
@@ -175,29 +181,7 @@
 }
 
 /* ============ RESPONSIVE BREAKPOINTS ============ */
-@media (min-width: 640px) {
-  :root {
-    --font-size: 14px;
-  }
-}
-
-@media (min-width: 768px) {
-  :root {
-    --font-size: 14px;
-  }
-}
-
-@media (min-width: 1024px) {
-  :root {
-    --font-size: 14px;
-  }
-}
-
-@media (min-width: 1280px) {
-  :root {
-    --font-size: 14px;
-  }
-}
+/* Font sizing uses fluid clamp() tokens declared in :root. */
 
 .card-study, .browse-card, .theme-section {
   -webkit-backdrop-filter: blur(8px) saturate(140%);
@@ -622,9 +606,9 @@ button {
   border: none;
   border-radius: var(--button-radius);
   cursor: pointer;
-  padding: calc(var(--spacing-md) + 2px) calc(var(--spacing-xl) + 4px);
-  min-height: 44px;
-  min-width: 44px;
+  padding: var(--button-padding-y) var(--button-padding-x);
+  min-height: var(--button-min-size);
+  min-width: var(--button-min-size);
   transition: var(--transition-transform), var(--transition-colors), box-shadow var(--duration-300) var(--ease-out);
   display: inline-flex;
   align-items: center;
@@ -719,13 +703,35 @@ button:disabled {
 
 /* Icon Button */
 .btn-icon {
-  padding: var(--spacing-md);
+  padding: clamp(8px, 1.5vw, 14px);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: var(--button-min-size);
+  min-height: var(--button-min-size);
+}
+
+/* Responsive icon sizing */
+.app-icon {
+  width: clamp(
+    var(--icon-inline-size-min),
+    calc(var(--icon-size, 24px) * 0.85 + 0.35vw),
+    min(calc(var(--icon-size, 24px) * 1.1), var(--icon-inline-size-max))
+  );
+  height: clamp(
+    var(--icon-inline-size-min),
+    calc(var(--icon-size, 24px) * 0.85 + 0.35vw),
+    min(calc(var(--icon-size, 24px) * 1.1), var(--icon-inline-size-max))
+  );
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+button .app-icon {
+  width: clamp(14px, calc(var(--icon-size, 20px) * 0.8 + 0.25vw), 28px);
+  height: clamp(14px, calc(var(--icon-size, 20px) * 0.8 + 0.25vw), 28px);
 }
 
 /* Login & Signup */
@@ -2261,14 +2267,14 @@ label {
 }
 
 .icon {
-  width: 120px;
-  height: 120px;
+  width: clamp(80px, 20vw, 120px);
+  height: clamp(80px, 20vw, 120px);
 }
 
-.icon.sm { width: 30px; height: 30px; }
-.icon.md { width: 30px; height: 30px; }
-.icon.lg { width: 36px; height: 36px; }
-.icon.xl { width: 44px; height: 44px; }
+.icon.sm { width: clamp(20px, 4.5vw, 30px); height: clamp(20px, 4.5vw, 30px); }
+.icon.md { width: clamp(22px, 5vw, 30px); height: clamp(22px, 5vw, 30px); }
+.icon.lg { width: clamp(26px, 6vw, 36px); height: clamp(26px, 6vw, 36px); }
+.icon.xl { width: clamp(30px, 7vw, 44px); height: clamp(30px, 7vw, 44px); }
 
 #confirmAIModal {
   color: #7b9afb;
