@@ -7,13 +7,13 @@
   --primary-darker: #172554;
 
   /* Secondary / Accent Palette */
-  --secondary: #1e40af;
+  --secondary: #1e3a8a;
   --secondary-light: #bfdbfe;
-  --secondary-dark: #1e3a8a;
+  --secondary-dark: #172554;
 
-  --accent: #3b82f6;
+  --accent: #1e3a8a;
   --accent-light: #bfdbfe;
-  --accent-dark: #1e40af;
+  --accent-dark: #172554;
 
   /* Neutral Colors */
   --background: #ffffff;
@@ -73,13 +73,13 @@
 
   /* Font sizes - fluid and screen-aware */
   --font-size: clamp(13px, 0.3vw + 12px, 16px);
-  --font-size-xs: clamp(10px, 0.2vw + 9px, 12px);
-  --font-size-sm: clamp(11px, 0.25vw + 10px, 13px);
-  --font-size-base: clamp(13px, 0.35vw + 12px, 16px);
-  --font-size-lg: clamp(14px, 0.45vw + 12px, 18px);
-  --font-size-xl: clamp(15px, 0.6vw + 12px, 20px);
-  --font-size-2xl: clamp(18px, 0.8vw + 15px, 24px);
-  --font-size-3xl: clamp(22px, 1.1vw + 17px, 30px);
+  --font-size-xs: clamp(12px, 0.2vw + 11px, 13px);
+  --font-size-sm: clamp(14px, 0.25vw + 13px, 15px);
+  --font-size-base: clamp(16px, 0.35vw + 15px, 17px);
+  --font-size-lg: clamp(18px, 0.45vw + 16px, 20px);
+  --font-size-xl: clamp(20px, 0.6vw + 17px, 22px);
+  --font-size-2xl: clamp(24px, 0.8vw + 20px, 28px);
+  --font-size-3xl: clamp(30px, 1.1vw + 23px, 36px);
   --font-size-4xl: clamp(26px, 1.6vw + 18px, 38px);
   
   /* Line heights */
@@ -90,20 +90,20 @@
 
   /* ============ SPACING ============ */
   --spacing-0: 0;
-  --spacing-xs: 4px;
+  --spacing-xs: 8px;
   --spacing-sm: 8px;
-  --spacing-md: 12px;
-  --spacing-lg: 16px;
-  --spacing-xl: 24px;
-  --spacing-2xl: 32px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 40px;
   --spacing-3xl: 48px;
   --spacing-4xl: 64px;
 
   /* ============ BORDER & RADIUS ============ */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-2xl: 24px;
   --radius-full: 9999px;
   --button-radius: 999px;
@@ -221,6 +221,30 @@ body {
   -webkit-user-select: none;
   user-select: none;
   overscroll-behavior-y: none;
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: 16px;
+  }
+}
+
+button,
+.quiz-option,
+[role="button"],
+a.btn-primary,
+a.btn-secondary {
+  min-height: 44px;
+}
+
+button:focus-visible,
+.quiz-option:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 2px;
 }
 
 /* ============ INTRO LANDING ============ */
@@ -1144,6 +1168,23 @@ button .app-icon {
   max-width: 420px;
   font-size: 1rem;
   color: rgba(255, 255, 255, 0.88);
+}
+
+.home-primary-cta {
+  margin-top: 12px;
+  align-self: flex-start;
+  min-width: 170px;
+}
+
+.home-actions-card .btn-primary,
+.home-actions-card .btn-secondary {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .home-primary-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
 }
 
 .home-hero-stats {
