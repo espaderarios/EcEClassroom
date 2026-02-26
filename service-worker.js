@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ec-eclassroom-v10';
+const CACHE_NAME = 'ec-eclassroom-v11';
 const SW_VERSION = '2026-02-25-1';
 const CORE_ASSETS = [
   './',
