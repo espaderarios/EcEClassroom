@@ -213,7 +213,7 @@ self.addEventListener('fetch', event => {
       // Prevent caching non-http(s) requests (e.g., chrome-extension://)
       const url = new URL(event.request.url);
       if (!url.protocol.startsWith('http')) {
-        return fetch(event.request).catch(() => caches.match('/index.html'));
+        return fetch(event.request).catch(() => caches.match('./index.html'));
       }
       
       return fetch(event.request)
@@ -229,7 +229,7 @@ self.addEventListener('fetch', event => {
           }
           return response;
         })
-        .catch(() => caches.match('/index.html'));
+        .catch(() => caches.match('./index.html'));
     })
   );
 });

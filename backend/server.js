@@ -8,7 +8,19 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.APP_ORIGIN || 'https://classrio.me,http://localhost:3000,http://127.0.0.1:3000')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 
@@ -29,6 +41,7 @@ class FileStorage {
   constructor(collection) {
     this.collection = collection;
     this.filePath = path.join(DATA_DIR, `${collection}.json`);
+    this.writeQueue = Promise.resolve();
   }
 
   async readAll() {
@@ -42,7 +55,15 @@ class FileStorage {
   }
 
   async writeAll(data) {
-    await fs.writeFile(this.filePath, JSON.stringify(data, null, 2), 'utf8');
+    const tempPath = `${this.filePath}.tmp`;
+    const payload = JSON.stringify(data, null, 2);
+
+    this.writeQueue = this.writeQueue.then(async () => {
+      await fs.writeFile(tempPath, payload, 'utf8');
+      await fs.rename(tempPath, this.filePath);
+    });
+
+    await this.writeQueue;
   }
 
   async getAll(filter = {}) {
@@ -97,6 +118,28 @@ class FileStorage {
   }
 }
 
+function getAuthenticatedUserId(req) {
+  const isAuthed = req.cookies?.google_authenticated === 'true';
+  if (!isAuthed) return null;
+  return req.cookies?.auth_user_id || null;
+}
+
+function requireApiAuth(req, res, next) {
+  const userId = getAuthenticatedUserId(req);
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  req.authUserId = String(userId);
+  next();
+}
+
+function ensureOwnerScope(item, ownerField, authUserId) {
+  if (!item || !ownerField) return false;
+  const value = item[ownerField];
+  if (!value) return false;
+  return String(value) === String(authUserId);
+}
+
 // Storage instances
 const stores = {
   classes: new FileStorage('classes'),
@@ -108,17 +151,28 @@ const stores = {
 };
 
 // Generic CRUD handler
-function createCRUDRoutes(app, path, store) {
+function createCRUDRoutes(app, path, store, options = {}) {
+  const ownerField = options.ownerField || null;
+  const lockToOwner = Boolean(ownerField);
+
   // Get all or by ID
-  app.get(`${path}/:id?`, async (req, res) => {
+  app.get(`${path}/:id?`, requireApiAuth, async (req, res) => {
     try {
       if (req.params.id) {
         const item = await store.get(req.params.id);
         if (!item) return res.status(404).json({ error: 'Not found' });
+        if (lockToOwner && !ensureOwnerScope(item, ownerField, req.authUserId)) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
         return res.json(item);
       }
-      
-      const items = await store.getAll(req.query);
+
+      const filter = { ...req.query };
+      if (lockToOwner) {
+        filter[ownerField] = req.authUserId;
+      }
+
+      const items = await store.getAll(filter);
       res.json(items);
     } catch (err) {
       console.error(`GET ${path} error:`, err);
@@ -127,9 +181,13 @@ function createCRUDRoutes(app, path, store) {
   });
 
   // Create
-  app.post(path, async (req, res) => {
+  app.post(path, requireApiAuth, async (req, res) => {
     try {
-      const item = await store.create(req.body);
+      const payload = { ...req.body };
+      if (lockToOwner) {
+        payload[ownerField] = req.authUserId;
+      }
+      const item = await store.create(payload);
       res.status(201).json(item);
     } catch (err) {
       console.error(`POST ${path} error:`, err);
@@ -138,10 +196,19 @@ function createCRUDRoutes(app, path, store) {
   });
 
   // Update
-  app.put(`${path}/:id`, async (req, res) => {
+  app.put(`${path}/:id`, requireApiAuth, async (req, res) => {
     try {
-      const item = await store.update(req.params.id, req.body);
-      if (!item) return res.status(404).json({ error: 'Not found' });
+      const existing = await store.get(req.params.id);
+      if (!existing) return res.status(404).json({ error: 'Not found' });
+      if (lockToOwner && !ensureOwnerScope(existing, ownerField, req.authUserId)) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const payload = { ...req.body };
+      if (lockToOwner) {
+        payload[ownerField] = req.authUserId;
+      }
+      const item = await store.update(req.params.id, payload);
       res.json(item);
     }
     catch (err) {
@@ -151,8 +218,14 @@ function createCRUDRoutes(app, path, store) {
   });
 
   // Delete
-  app.delete(`${path}/:id`, async (req, res) => {
+  app.delete(`${path}/:id`, requireApiAuth, async (req, res) => {
     try {
+      const existing = await store.get(req.params.id);
+      if (!existing) return res.status(404).json({ error: 'Not found' });
+      if (lockToOwner && !ensureOwnerScope(existing, ownerField, req.authUserId)) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
       const deleted = await store.delete(req.params.id);
       if (!deleted) return res.status(404).json({ error: 'Not found' });
       res.json({ ok: true });
@@ -270,19 +343,57 @@ app.get('/auth/google/callback', async (req, res) => {
       });
     }
 
-    // Redirect back to app with user data
+    // Save login session in HttpOnly cookies, then redirect without user data params
+    res.cookie('auth_user_id', user.id, {
+      httpOnly: true,
+      secure: req.secure,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+    res.cookie('google_authenticated', 'true', {
+      httpOnly: true,
+      secure: req.secure,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+    res.clearCookie('oauth_state');
+
     const redirectUrl = new URL(appOrigin);
     redirectUrl.searchParams.set('oauth_login', 'success');
-    redirectUrl.searchParams.set('user_id', user.id);
-    redirectUrl.searchParams.set('user_name', user.name || '');
-    redirectUrl.searchParams.set('user_email', user.googleEmail || '');
-    redirectUrl.searchParams.set('google_id', user.googleId || '');
-    redirectUrl.searchParams.set('picture', user.picture || '');
 
     res.redirect(redirectUrl.toString());
   } catch (error) {
     console.error('OAuth callback error:', error);
     res.redirect(`${appOrigin}/?oauth_login=error&error=${encodeURIComponent(error.message)}`);
+  }
+});
+
+app.get('/auth/me', async (req, res) => {
+  try {
+    const userId = req.cookies?.auth_user_id;
+    const isAuthed = req.cookies?.google_authenticated === 'true';
+
+    if (!userId || !isAuthed) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const user = await stores.students.get(String(userId));
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      id: user.id,
+      name: user.name || '',
+      email: user.googleEmail || '',
+      googleId: user.googleId || '',
+      picture: user.picture || null,
+      provider: 'google',
+      authenticated: true
+    });
+  } catch (error) {
+    console.error('Auth me error:', error);
+    return res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
 
@@ -724,13 +835,13 @@ Rules:
 });
 
 // Setup CRUD routes
-createCRUDRoutes(app, '/api/classes', stores.classes);
-createCRUDRoutes(app, '/api/quizzes', stores.quizzes);
-createCRUDRoutes(app, '/api/students', stores.students);
-createCRUDRoutes(app, '/api/teachers', stores.teachers);
-createCRUDRoutes(app, '/api/enrollments', stores.enrollments);
-createCRUDRoutes(app, '/api/flashcards', stores.flashcards);
-createCRUDRoutes(app, '/api/attempts', stores.quizzes); // Share with quizzes
+createCRUDRoutes(app, '/api/classes', stores.classes, { ownerField: 'teacherId' });
+createCRUDRoutes(app, '/api/quizzes', stores.quizzes, { ownerField: 'teacherId' });
+createCRUDRoutes(app, '/api/students', stores.students, { ownerField: 'id' });
+createCRUDRoutes(app, '/api/teachers', stores.teachers, { ownerField: 'id' });
+createCRUDRoutes(app, '/api/enrollments', stores.enrollments, { ownerField: 'studentId' });
+createCRUDRoutes(app, '/api/flashcards', stores.flashcards, { ownerField: 'userId' });
+createCRUDRoutes(app, '/api/attempts', stores.quizzes, { ownerField: 'studentId' }); // Share with quizzes
 
 // Error handler
 app.use((err, req, res, next) => {
