@@ -690,6 +690,12 @@ button:disabled {
   box-shadow: 0 20px 38px rgba(239, 68, 68, 0.35);
 }
 
+.profile-logout-btn {
+  min-width: 112px;
+  padding: 12px 16px;
+  white-space: nowrap;
+}
+
 /* Text Button */
 .btn-text {
   background: transparent;
@@ -4363,4 +4369,3 @@ select:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
-
