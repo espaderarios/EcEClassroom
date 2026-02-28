@@ -1,10 +1,12 @@
-const CACHE_NAME = 'ec-eclassroom-v12';
-const SW_VERSION = '2026-02-25-1';
+const CACHE_NAME = 'ec-eclassroom-v14';
+const SW_VERSION = '2026-02-28-3';
 const CORE_ASSETS = [
   './',
   './index.html',
+  './features.html',
   './info.html',
   './app.js',
+  './features.js',
   './styles.css',
   './tailwindcss.js',
   './manifest.json',
@@ -142,7 +144,11 @@ const ICON_ASSETS = [
   './icons/tips.svg',
   './icons/upload.svg',
   './icons/warning.svg',
-  './icons/year-level.svg'
+  './icons/year-level.svg',
+  './icons/crossword.svg',
+  './icons/matchinglines.svg',
+  './icons/scrable.svg',
+  './icons/menu.svg'
 ];
 
 const PRECACHE_ASSETS = [
@@ -196,24 +202,39 @@ self.addEventListener('fetch', event => {
         .then(response => {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then(cache => {
-            cache.put('./index.html', responseClone).catch(() => {});
+            cache.put(event.request, responseClone).catch(() => {});
           });
           return response;
         })
-        .catch(() => caches.match('./index.html'))
+        .catch(async () => {
+          const url = new URL(event.request.url);
+          const pathname = url.pathname || '/';
+          const cachedExact = await caches.match(event.request, { ignoreSearch: true });
+          if (cachedExact) return cachedExact;
+
+          if (pathname.endsWith('/features.html') || pathname === '/features') {
+            return caches.match('./features.html');
+          }
+
+          if (pathname.endsWith('/info.html') || pathname === '/info') {
+            return caches.match('./info.html');
+          }
+
+          return caches.match('./index.html');
+        })
     );
     return;
   }
 
   // Try cache first, then network
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(event.request, { ignoreSearch: true }).then(cached => {
       if (cached) return cached;
       
       // Prevent caching non-http(s) requests (e.g., chrome-extension://)
       const url = new URL(event.request.url);
       if (!url.protocol.startsWith('http')) {
-        return fetch(event.request).catch(() => caches.match('/index.html'));
+        return fetch(event.request).catch(() => caches.match('./index.html'));
       }
       
       return fetch(event.request)
@@ -229,7 +250,7 @@ self.addEventListener('fetch', event => {
           }
           return response;
         })
-        .catch(() => caches.match('/index.html'));
+        .catch(() => caches.match('./index.html'));
     })
   );
 });
