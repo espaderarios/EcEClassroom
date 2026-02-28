@@ -1464,6 +1464,14 @@ button .app-icon {
   transform: none;
 }
 
+body.bottom-nav-visible main {
+  padding-bottom: calc(96px + var(--safe-area-bottom));
+}
+
+body.bottom-nav-visible .mobile-optimized {
+  padding-bottom: calc(96px + var(--safe-area-bottom));
+}
+
 /* ============ FORM INPUTS ============ */
 input,
 textarea,
@@ -1749,6 +1757,10 @@ label {
   .mobile-optimized {
     padding-bottom: 60px;
   }
+
+  body.bottom-nav-visible .mobile-optimized {
+    padding-bottom: 60px;
+  }
 }
 
 /* Tablet adjustments */
@@ -1774,6 +1786,10 @@ label {
   }
 
   .mobile-optimized {
+    padding-bottom: var(--spacing-xl);
+  }
+
+  body.bottom-nav-visible .mobile-optimized {
     padding-bottom: var(--spacing-xl);
   }
 
@@ -3082,7 +3098,7 @@ body.bottom-nav-visible .settings-fab {
   width: 48px;
   height: 48px;
   font-size: 18px;
-  bottom: 60px;  /* lifted above bottom nav */
+  bottom: 60px;
 }
 
 /* Progress Bar */

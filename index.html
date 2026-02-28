@@ -288,11 +288,7 @@ window.isAuthenticated = getUser()?.authenticated === true;
   }
 
   function getRenderBackendUrl() {
-    // Render backend for AI generation (Groq access works there)
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (isLocalhost) {
-      return 'http://localhost:3000';
-    }
+    // Always use Render backend for AI generation
     return 'https://eclassroom-backend.onrender.com';
   }
 
@@ -667,7 +663,7 @@ if ('serviceWorker' in navigator) {
       };
     }
   </script>
-  <script src="app.js?v=20260205c"></script>
+  <script src="app.js?v=20260228a"></script>
 
 
   <!-- Backend Sync Script -->

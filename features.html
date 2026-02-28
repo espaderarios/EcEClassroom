@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="EClassroom academic features and games">
+  <meta name="theme-color" content="#1e3a8a">
+  <meta name="color-scheme" content="light">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <title>Academic Features - EClassroom</title>
+  <style>
+    :root {
+      --features-header-height: clamp(72px, 11vw, 92px);
+      --game-control-height: clamp(36px, 5.8vw, 42px);
+      --game-font-xs: clamp(0.72rem, 2.1vw, 0.82rem);
+      --game-font-sm: clamp(0.76rem, 2.4vw, 0.9rem);
+      --cw-cell-size: clamp(28px, 7.4vw, 36px);
+      --cw-cell-gap: clamp(2px, 0.75vw, 4px);
+    }
+
+    .features-layout {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(10px, 2.6vw, 16px);
+      max-width: min(980px, 96vw);
+      margin: 0 auto;
+      padding-bottom: 92px;
+    }
+
+    .features-hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 48%, #22d3ee 100%);
+      color: #fff;
+      border: none;
+      box-shadow: 0 20px 32px rgba(15, 23, 42, 0.24);
+    }
+
+    .features-hero h2 {
+      margin: 0 0 8px 0;
+      font-size: clamp(1.25rem, 2.8vw, 1.9rem);
+      font-weight: 700;
+    }
+
+    .features-hero p {
+      margin: 0;
+      opacity: 0.9;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(clamp(180px, 44vw, 240px), 1fr));
+      gap: clamp(8px, 2vw, 12px);
+    }
+
+    .feature-tile {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--card-bg);
+      color: var(--text);
+      padding: clamp(14px, 2.8vw, 18px);
+      text-align: left;
+      min-height: clamp(132px, 28vw, 170px);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: clamp(8px, 1.6vw, 12px);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      overflow: hidden;
+    }
+
+    .feature-tile:hover {
+      transform: translateY(-1px);
+      border-color: var(--primary);
+      box-shadow: var(--shadow);
+    }
+
+    .feature-tile:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+
+    .feature-tile.active {
+      border-color: var(--primary);
+      background: linear-gradient(140deg, rgba(30, 64, 175, 0.08), rgba(34, 211, 238, 0.08));
+      box-shadow: 0 8px 22px rgba(37, 99, 235, 0.16);
+    }
+
+    .feature-tile.has-bg-icon {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .feature-tile.has-bg-icon::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: var(--tile-icon);
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 88% 88%;
+      opacity: 0.56;
+      filter: saturate(1.2) contrast(1.18) drop-shadow(0 1px 2px rgba(15, 23, 42, 0.3));
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .feature-tile.has-bg-icon.active::before {
+      opacity: 0.68;
+    }
+
+    .feature-tile.has-bg-icon > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .feature-tile-title {
+      font-weight: 700;
+      font-size: clamp(1rem, 2.4vw, 1.16rem);
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.7);
+    }
+
+    .feature-tile-icon {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      opacity: 0.95;
+    }
+
+    .feature-tile-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .feature-tile-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .feature-tile-text {
+      font-size: clamp(0.8rem, 2.1vw, 0.95rem);
+      color: var(--text-muted);
+      line-height: 1.4;
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.65);
+      display: block;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+
+    .feature-panel[hidden] {
+      display: none;
+    }
+
+    .feature-panel-active {
+      width: 100%;
+      min-height: calc(100dvh - 132px);
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    .feature-panel-back {
+      margin: 0 0 10px 0;
+      align-self: flex-start;
+      min-height: 40px;
+    }
+
+    .feature-panel h3 {
+      margin: 0 0 8px 0;
+      color: var(--text);
+      font-size: 1.08rem;
+    }
+
+    .feature-panel p {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .feature-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: clamp(8px, 1.8vw, 10px);
+      margin-top: clamp(10px, 2vw, 14px);
+      margin-bottom: clamp(10px, 2vw, 14px);
+      align-items: center;
+    }
+
+    .feature-toolbar input[type="file"],
+    .feature-toolbar input[type="text"] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      min-height: var(--game-control-height);
+      min-width: min(100%, clamp(160px, 44vw, 220px));
+      font-size: var(--game-font-sm);
+    }
+
+    .feature-toolbar input[type="number"] {
+      width: clamp(76px, 22vw, 90px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      min-height: var(--game-control-height);
+      font-size: var(--game-font-sm);
+    }
+
+    .feature-toolbar button,
+    .feature-toolbar a {
+      min-height: var(--game-control-height);
+      font-size: var(--game-font-sm);
+    }
+
+    .tool-hint {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .data-health-banner {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      background: var(--surface);
+      display: grid;
+      gap: 8px;
+    }
+
+    .data-health-banner[data-health="offline"],
+    .data-health-banner[data-health="error"] {
+      border-color: var(--danger, #dc2626);
+    }
+
+    .set-search-input {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 9px 10px;
+      min-height: clamp(36px, 5.5vw, 40px);
+      font-size: var(--game-font-sm);
+    }
+
+    .review-list {
+      margin-top: 8px;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      background: var(--card-bg);
+      color: var(--text-muted);
+      font-size: var(--game-font-xs);
+    }
+
+    .pdf-canvas-wrap {
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      padding: 10px;
+      overflow: auto;
+      max-height: 62vh;
+    }
+
+    #featurePdfCanvas {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .status-text {
+      margin-top: 10px;
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      min-height: 18px;
+    }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .analysis-item {
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 12px;
+    }
+
+    .analysis-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .analysis-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .chip-list {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.8rem;
+      padding: 6px 10px;
+      line-height: 1;
+    }
+
+    .crossword-wrap {
+      display: grid;
+      grid-template-columns: minmax(clamp(180px, 35vw, 250px), 1fr) minmax(0, 2fr);
+      gap: clamp(10px, 2vw, 14px);
+      margin-top: clamp(10px, 2vw, 14px);
+    }
+
+    .crossword-clues {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: 12px;
+      max-height: clamp(220px, 42vh, 420px);
+      overflow: auto;
+    }
+
+    .crossword-clues h4 {
+      margin: 8px 0;
+      font-size: var(--game-font-sm);
+      color: var(--text);
+    }
+
+    .clue-list {
+      margin: 0;
+      padding-left: 0;
+      list-style: none;
+      display: grid;
+      gap: 6px;
+      color: var(--text-muted);
+      font-size: var(--game-font-xs);
+    }
+
+    .cw-clue-btn {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 4px 6px;
+      cursor: pointer;
+      font-size: inherit;
+      line-height: 1.35;
+    }
+
+    .cw-clue-btn:hover,
+    .cw-clue-btn.active {
+      border-color: var(--primary);
+      background: var(--surface);
+      color: var(--primary);
+    }
+
+    .cw-clue-btn:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 1px;
+    }
+
+    .crossword-grid {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: 10px;
+      overflow: auto;
+    }
+
+    .crossword-grid-board {
+      display: grid;
+      gap: var(--cw-cell-gap);
+      width: max-content;
+      margin: 0 auto;
+    }
+
+    .crossword-setup {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .crossword-setup-toggle {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: var(--game-control-height);
+      font-size: var(--game-font-sm);
+      align-self: flex-start;
+    }
+
+    .crossword-setup-toggle img {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+
+    .crossword-setup-panel[hidden] {
+      display: none;
+    }
+
+    .crossword-setup-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .crossword-setup label {
+      display: grid;
+      gap: 6px;
+      color: var(--text);
+      font-size: var(--game-font-xs);
+      font-weight: 600;
+    }
+
+    .crossword-setup select,
+    .crossword-setup input[type="number"] {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 9px 10px;
+      min-height: clamp(36px, 5.5vw, 40px);
+      font-size: var(--game-font-sm);
+    }
+
+    .crossword-checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .crossword-checks label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--game-font-xs);
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .crossword-warnings {
+      margin-top: 10px;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      background: var(--card-bg);
+      display: none;
+    }
+
+    .crossword-answer-key {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      background: var(--surface);
+      display: none;
+    }
+
+    .crossword-direction {
+      margin-top: 6px;
+      font-size: var(--game-font-xs);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .cw-cell,
+    .cw-block {
+      width: var(--cw-cell-size);
+      height: var(--cw-cell-size);
+      border-radius: 6px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cw-block {
+      background: #d1d5db;
+    }
+
+    .cw-cell {
+      background: #fff;
+      border: 1px solid #94a3b8;
+    }
+
+    .cw-cell input {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0 !important;
+      min-height: 0;
+      border: none;
+      text-align: center;
+      font-size: clamp(0.78rem, 2.8vw, 1rem);
+      font-weight: 700;
+      line-height: 1;
+      text-transform: uppercase;
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a;
+      caret-color: #0f172a;
+      background: transparent;
+      border-radius: 6px;
+      box-sizing: border-box;
+      box-shadow: none;
+    }
+
+    .cw-cell input:focus {
+      outline: 2px solid #2563eb;
+      outline-offset: -1px;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    .cw-cell.correct {
+      background: #dcfce7;
+      border-color: #16a34a;
+    }
+
+    .cw-cell.active-word {
+      box-shadow: inset 0 0 0 2px var(--primary);
+    }
+
+    .cw-cell.review-hidden {
+      visibility: hidden;
+      border-color: transparent;
+      background: transparent;
+    }
+
+    .cw-cell.incorrect {
+      background: #fee2e2;
+      border-color: #dc2626;
+    }
+
+    .cw-number {
+      position: absolute;
+      top: 2px;
+      left: 3px;
+      font-size: clamp(0.44rem, 1.35vw, 0.52rem);
+      font-weight: 700;
+      color: #334155;
+      pointer-events: none;
+    }
+
+    .matching-board {
+      position: relative;
+      margin-top: clamp(10px, 2vw, 14px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: clamp(8px, 2.4vw, 14px);
+      overflow: auto;
+      max-width: 100%;
+    }
+
+    .matching-columns {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: clamp(6px, 2vw, 20px);
+      position: relative;
+      z-index: 2;
+      min-width: 0;
+    }
+
+    .matching-column {
+      min-width: 0;
+    }
+
+    .matching-column h4 {
+      margin: 0 0 8px 0;
+      color: var(--text);
+      font-size: var(--game-font-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .match-item {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      color: #0f172a;
+      padding: 8px;
+      margin-bottom: 6px;
+      font-size: var(--game-font-xs);
+      line-height: 1.3;
+      cursor: pointer;
+      min-height: clamp(30px, 4.8vw, 34px);
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .match-item.selected {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+    }
+
+    .match-item.matched {
+      background: #eff6ff;
+      border-color: #3b82f6;
+    }
+
+    .match-lines {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .matching-fallback-list {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      background: var(--card-bg);
+      color: var(--text-muted);
+    }
+
+    .scramble-word {
+      margin-top: clamp(10px, 2vw, 14px);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      padding: clamp(10px, 2.5vw, 14px);
+      letter-spacing: clamp(0.06em, 0.6vw, 0.18em);
+      font-weight: 700;
+      text-align: center;
+      font-size: clamp(0.92rem, 3vw, 1.3rem);
+    }
+
+    #scramble-answer-input {
+      min-width: min(100%, clamp(160px, 55vw, 220px));
+    }
+
+    .sticky-action-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 86px;
+      z-index: 35;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .sticky-action-inner {
+      width: min(980px, 96vw);
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      box-shadow: var(--shadow);
+      pointer-events: auto;
+    }
+
+    .sticky-action-inner button {
+      flex: 1;
+    }
+
+    @media (max-width: 900px) {
+      .feature-panel-active {
+        min-height: calc(100dvh - 116px);
+      }
+
+      .crossword-setup-grid {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      }
+
+      .crossword-wrap {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .crossword-clues {
+        max-height: 280px;
+      }
+
+      .crossword-grid {
+        padding: 8px;
+      }
+
+      .matching-board {
+        padding: 10px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .feature-panel h3 {
+        font-size: 1rem;
+      }
+
+      .feature-panel p,
+      .status-text,
+      .tool-hint {
+        font-size: 0.8rem;
+      }
+
+      .feature-panel-back {
+        min-height: 36px;
+        font-size: 0.82rem;
+      }
+
+      .feature-toolbar {
+        gap: 8px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+      }
+
+      .feature-toolbar input[type="file"],
+      .feature-toolbar input[type="text"] {
+        min-width: 100%;
+        min-height: 38px;
+        font-size: 0.84rem;
+      }
+
+      .feature-toolbar button {
+        min-height: 38px;
+        font-size: 0.82rem;
+        padding: 8px 10px;
+      }
+
+      .crossword-setup {
+        padding: 10px;
+        gap: 8px;
+      }
+
+      .crossword-setup-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .crossword-setup label {
+        font-size: 0.78rem;
+      }
+
+      .crossword-setup select,
+      .crossword-setup input[type="number"] {
+        min-height: 36px;
+        font-size: 0.82rem;
+        padding: 8px 9px;
+      }
+
+      .crossword-checks {
+        gap: 6px;
+      }
+
+      .crossword-checks label {
+        font-size: 0.74rem;
+      }
+
+      .matching-columns {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 6px;
+      }
+
+      .matching-column h4 {
+        font-size: 0.72rem;
+        margin-bottom: 6px;
+      }
+
+      .match-item {
+        font-size: 0.7rem;
+        min-height: 30px;
+        padding: 6px;
+      }
+
+      .match-lines {
+        display: block;
+      }
+
+      .scramble-word {
+        margin-top: 10px;
+        padding: 10px;
+        letter-spacing: 0.1em;
+        font-size: 0.95rem;
+      }
+
+      #scramble-answer-input {
+        min-width: 100%;
+      }
+
+      .sticky-action-bar {
+        display: flex;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .crossword-grid-board {
+        transform: scale(0.88);
+        transform-origin: top center;
+      }
+
+      .crossword-grid {
+        max-height: 56vh;
+      }
+
+      .feature-toolbar button {
+        flex: 1 1 auto;
+      }
+
+      .scramble-word {
+        letter-spacing: 0.06em;
+        font-size: 0.9rem;
+      }
+    }
+
+    @media (min-width: 641px) {
+      .sticky-action-bar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body class="h-full" id="app-body">
+  <header class="fixed top-0 left-0 right-0 bg-card border-b border-border shadow-sm z-fixed" style="background-color: var(--card-bg); border-color: var(--border);">
+    <div class="container flex-between p-lg" style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="flex gap-md" style="display: flex; gap: var(--spacing-md); align-items: center;">
+        <h1 class="m-0" style="margin: 0; font-size: var(--font-size-2xl); color: var(--primary);">EClassroom</h1>
+      </div>
+    </div>
+  </header>
+
+  <main class="w-full" style="padding-top: var(--features-header-height); min-height: 100dvh; background-color: var(--background);">
+    <div class="mobile-optimized w-full h-full overflow-auto p-4">
+      <div class="features-layout">
+        <div id="data-health-banner" class="data-health-banner" hidden>
+          <div id="data-health-text" class="tool-hint"></div>
+          <div class="feature-toolbar" style="margin: 0;">
+            <button class="btn-secondary" type="button" data-retry-sync>Retry Sync</button>
+          </div>
+        </div>
+        <div id="features-lobby">
+          <section class="card elevated features-hero">
+            <h2>Academic Tools and Games</h2>
+            <p>Use the modules below for interactive review: crossword practice, line-matching questions, and extra games.</p>
+          </section>
+
+          <section class="card">
+            <h3 style="margin: 0 0 8px 0; color: var(--text);">Choose a Feature</h3>
+            <p style="margin: 0 0 14px 0; color: var(--text-muted); font-size: 0.9rem;">Select any tool to open it instantly.</p>
+            <div class="feature-grid">
+              <button class="feature-tile has-bg-icon" type="button" data-target="crossword-panel" aria-pressed="false" style="--tile-icon: url('icons/crossword.svg');">
+                <span class="feature-tile-title">Crossword Challenge</span>
+                <span class="feature-tile-text">Answer clues by typing letters into the crossword.</span>
+              </button>
+              <button class="feature-tile has-bg-icon" type="button" data-target="match-lines-panel" aria-pressed="false" style="--tile-icon: url('icons/matchinglines.svg');">
+                <span class="feature-tile-title">Connect the Answers</span>
+                <span class="feature-tile-text">Connect each question to the right answer with lines.</span>
+              </button>
+              <button class="feature-tile has-bg-icon" type="button" data-target="word-scramble-panel" aria-pressed="false" style="--tile-icon: url('icons/scrable.svg');">
+                <span class="feature-tile-title">Word Scramble</span>
+                <span class="feature-tile-text">Unscramble academic terms with hints.</span>
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <section id="crossword-panel" class="card feature-panel" hidden>
+          <button class="btn-secondary feature-panel-back" type="button" data-back-lobby>← Back to lobby</button>
+          <h3>Crossword Challenge</h3>
+          <p>Build a crossword from your flashcard set, then solve it by typing one letter per box.</p>
+          <button class="btn-secondary crossword-setup-toggle" type="button" id="crossword-setup-toggle" aria-expanded="false" aria-controls="crossword-setup-panel">
+            <img src="icons/menu.svg" alt="" loading="lazy" aria-hidden="true">
+            Setup options
+          </button>
+          <div class="crossword-setup crossword-setup-panel" id="crossword-setup-panel" hidden>
+            <div class="crossword-setup-grid">
+              <label>
+                Purpose
+                <select id="crossword-purpose-select">
+                  <option value="review" selected>Review before quiz</option>
+                  <option value="terminology">Practice terminology</option>
+                  <option value="assessment">Self-assessment</option>
+                  <option value="reinforcement">Fun reinforcement</option>
+                </select>
+              </label>
+              <label>
+                Flashcard Set
+                <input id="crossword-set-search" class="set-search-input" type="text" placeholder="Search sets...">
+                <select id="crossword-set-select"></select>
+              </label>
+              <label>
+                Word Count
+                <input type="number" id="crossword-word-count" min="3" max="25" value="10">
+              </label>
+              <label>
+                Difficulty
+                <select id="crossword-difficulty-select">
+                  <option value="easy">Easy (short answers)</option>
+                  <option value="medium" selected>Medium (mixed)</option>
+                  <option value="hard">Hard (longer answers)</option>
+                </select>
+              </label>
+              <label>
+                Grid Size
+                <select id="crossword-grid-mode-select">
+                  <option value="auto" selected>Auto</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </label>
+              <label>
+                Fixed Size
+                <input type="number" id="crossword-grid-size" min="8" max="24" value="12" disabled>
+              </label>
+              <label>
+                Minimum Length
+                <input type="number" id="crossword-min-word-length" min="3" max="12" value="3">
+              </label>
+              <label>
+                Maximum Length
+                <input type="number" id="crossword-max-word-length" min="4" max="30" value="14">
+              </label>
+              <label>
+                Check Mode
+                <select id="crossword-check-mode-select">
+                  <option value="submit" selected>On submit</option>
+                  <option value="immediate">Immediate</option>
+                  <option value="completion">After completion</option>
+                </select>
+              </label>
+            </div>
+            <div class="crossword-checks">
+              <label><input type="checkbox" id="crossword-keep-spaces"> Keep spaces in answers</label>
+              <label><input type="checkbox" id="crossword-allow-symbols"> Allow symbols/numbers</label>
+            </div>
+            <div class="feature-toolbar" style="margin: 0;">
+              <button class="btn-secondary" type="button" id="crossword-sync-btn">Sync Now</button>
+              <button class="btn-primary" type="button" id="crossword-generate-btn">Generate Crossword</button>
+            </div>
+          </div>
+          <div class="feature-toolbar">
+            <button class="btn-primary" type="button" id="crossword-check-btn">Check Answers</button>
+            <button class="btn-secondary" type="button" id="crossword-reset-btn">Reset</button>
+            <button class="btn-secondary" type="button" id="crossword-review-btn">Review Mistakes</button>
+            <button class="btn-secondary" type="button" id="crossword-reveal-letter-btn">Reveal Letter</button>
+            <button class="btn-secondary" type="button" id="crossword-reveal-word-btn">Reveal Word</button>
+            <button class="btn-secondary" type="button" id="crossword-reveal-btn">Reveal All</button>
+            <button class="btn-secondary" type="button" id="crossword-answer-key-btn">Answer Key</button>
+          </div>
+          <div id="crossword-status" class="status-text" role="status" aria-live="polite" aria-atomic="true"></div>
+          <div id="crossword-progress" class="tool-hint" aria-live="polite" aria-atomic="true">Progress: 0/0</div>
+          <div id="crossword-achievement" class="tool-hint" aria-live="polite" aria-atomic="true">Best: 0% | Best time: --</div>
+          <div id="crossword-direction" class="crossword-direction">Typing direction: Across →</div>
+          <div id="crossword-warnings" class="crossword-warnings" role="status" aria-live="polite" aria-atomic="true"></div>
+          <div id="crossword-answer-key" class="crossword-answer-key"></div>
+          <div class="crossword-wrap">
+            <div class="crossword-clues">
+              <h4>Across</h4>
+              <ol id="crossword-across-list" class="clue-list" aria-label="Across clues"></ol>
+              <h4>Down</h4>
+              <ol id="crossword-down-list" class="clue-list" aria-label="Down clues"></ol>
+            </div>
+            <div class="crossword-grid">
+              <div id="crossword-grid-board" class="crossword-grid-board" role="grid" aria-label="Crossword grid"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="match-lines-panel" class="card feature-panel" hidden>
+          <button class="btn-secondary feature-panel-back" type="button" data-back-lobby>← Back to lobby</button>
+          <h3>Connect the Answers</h3>
+          <p>Select one question on the left and one answer on the right to draw a connection line.</p>
+          <div class="crossword-setup" style="margin-top: 10px;">
+            <div class="crossword-setup-grid">
+              <label>
+                Flashcard Set
+                <input id="match-set-search" class="set-search-input" type="text" placeholder="Search sets...">
+                <select id="match-set-select"></select>
+              </label>
+            </div>
+            <div class="feature-toolbar" style="margin: 10px 0 0 0;">
+              <button class="btn-secondary" type="button" id="match-sync-btn">Sync Now</button>
+              <button class="btn-primary" type="button" id="match-load-btn" disabled>Load Set</button>
+            </div>
+          </div>
+          <div class="feature-toolbar">
+            <button class="btn-primary" type="button" id="match-check-btn">Check Matches</button>
+            <button class="btn-secondary" type="button" id="match-reset-btn">Reset Matches</button>
+            <button class="btn-secondary" type="button" id="match-review-btn">Review Mistakes</button>
+            <button class="btn-secondary" type="button" id="match-toggle-mode-btn">List Mode</button>
+          </div>
+          <div id="match-status" class="status-text" role="status" aria-live="polite" aria-atomic="true"></div>
+          <div id="match-progress" class="tool-hint" aria-live="polite" aria-atomic="true">Progress: 0/0</div>
+          <div id="matching-achievement" class="tool-hint" aria-live="polite" aria-atomic="true">Best: 0% | Best time: --</div>
+          <div id="match-review-list" class="review-list" hidden></div>
+          <div id="matching-board" class="matching-board">
+            <svg id="match-lines-svg" class="match-lines"></svg>
+            <div class="matching-columns">
+              <div class="matching-column">
+                <h4>Questions</h4>
+                <div id="match-questions-list"></div>
+              </div>
+              <div class="matching-column">
+                <h4>Answers</h4>
+                <div id="match-answers-list"></div>
+              </div>
+            </div>
+          </div>
+          <div id="match-fallback-list" class="matching-fallback-list" hidden></div>
+        </section>
+
+        <section id="word-scramble-panel" class="card feature-panel" hidden>
+          <button class="btn-secondary feature-panel-back" type="button" data-back-lobby>← Back to lobby</button>
+          <h3>Word Scramble</h3>
+          <p>Unscramble each academic term and use the hint if needed.</p>
+          <div class="crossword-setup" style="margin-top: 10px;">
+            <div class="crossword-setup-grid">
+              <label>
+                Flashcard Set
+                <input id="scramble-set-search" class="set-search-input" type="text" placeholder="Search sets...">
+                <select id="scramble-set-select"></select>
+              </label>
+            </div>
+            <div class="feature-toolbar" style="margin: 10px 0 0 0;">
+              <button class="btn-secondary" type="button" id="scramble-sync-btn">Sync Now</button>
+              <button class="btn-primary" type="button" id="scramble-load-btn" disabled>Load Set</button>
+            </div>
+          </div>
+          <div class="scramble-word" id="scramble-word">Press New Word to begin.</div>
+          <div class="feature-toolbar">
+            <input type="text" id="scramble-answer-input" placeholder="Type your answer">
+            <button class="btn-primary" type="button" id="scramble-check-btn">Check</button>
+            <button class="btn-secondary" type="button" id="scramble-new-btn">New Word</button>
+            <button class="btn-secondary" type="button" id="scramble-hint-btn">Hint</button>
+            <button class="btn-secondary" type="button" id="scramble-review-btn">Review Missed</button>
+          </div>
+          <div class="tool-hint" id="scramble-hint">Hint: --</div>
+          <div class="status-text" id="scramble-status" role="status" aria-live="polite" aria-atomic="true"></div>
+          <div id="scramble-progress" class="tool-hint" aria-live="polite" aria-atomic="true">Streak: 0</div>
+          <div id="scramble-achievement" class="tool-hint" aria-live="polite" aria-atomic="true">Best streak: 0</div>
+          <div id="scramble-review-list" class="review-list" hidden></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div id="sticky-action-bar" class="sticky-action-bar" hidden>
+    <div class="sticky-action-inner">
+      <button id="sticky-primary-btn" class="btn-primary" type="button">Primary</button>
+      <button id="sticky-secondary-btn" class="btn-secondary" type="button">Secondary</button>
+    </div>
+  </div>
+
+  <div id="featuresBottomNav"></div>
+
+  <script src="features.js?v=20260228c"></script>
+</body>
+</html>
