@@ -1404,10 +1404,12 @@
       }
     });
 
-    const resolveDirectionForKey = (key, preferredDirection) => {
-      const startDirections = keyStartDirections[key] || { across: false, down: false };
-      if (startDirections.down && !startDirections.across) return "down";
-      if (startDirections.across && !startDirections.down) return "across";
+    const resolveDirectionForKey = (key, preferredDirection, useStartPreference = false) => {
+      if (useStartPreference) {
+        const startDirections = keyStartDirections[key] || { across: false, down: false };
+        if (startDirections.down && !startDirections.across) return "down";
+        if (startDirections.across && !startDirections.down) return "across";
+      }
 
       const directions = keyDirections[key] || { across: false, down: false };
       if (preferredDirection && directions[preferredDirection]) {
@@ -1445,7 +1447,7 @@
       input.addEventListener("focus", () => {
         const key = String(input.dataset.key || "");
         state.crossword.lastFocusedKey = key;
-        const resolvedDirection = resolveDirectionForKey(key, state.crossword.typingDirection);
+        const resolvedDirection = resolveDirectionForKey(key, state.crossword.typingDirection, false);
         setCrosswordTypingDirection(resolvedDirection);
         const entry = findBestEntryForCell(key, resolvedDirection);
         if (entry) {
@@ -1463,7 +1465,7 @@
         if (isAmbiguous && isRepeatedClick) {
           setCrosswordTypingDirection(state.crossword.typingDirection === "down" ? "across" : "down");
         } else {
-          setCrosswordTypingDirection(resolveDirectionForKey(key, state.crossword.typingDirection));
+          setCrosswordTypingDirection(resolveDirectionForKey(key, state.crossword.typingDirection, true));
         }
 
         const entry = findBestEntryForCell(key, state.crossword.typingDirection);
@@ -1478,7 +1480,7 @@
 
       input.addEventListener("input", () => {
         const key = String(input.dataset.key || "");
-        const direction = resolveDirectionForKey(key, state.crossword.typingDirection);
+        const direction = resolveDirectionForKey(key, state.crossword.typingDirection, false);
         setCrosswordTypingDirection(direction);
 
         const normalized = input.value.replace(/[^A-Za-z0-9]/g, "").slice(-1).toUpperCase();
@@ -1536,7 +1538,7 @@
         }
 
         if (event.key === "Backspace" && !input.value) {
-          const direction = resolveDirectionForKey(key, state.crossword.typingDirection);
+          const direction = resolveDirectionForKey(key, state.crossword.typingDirection, false);
           setCrosswordTypingDirection(direction);
           const previousKey = getAdjacentKey(key, direction, -1);
           if (previousKey) {

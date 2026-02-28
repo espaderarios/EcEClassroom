@@ -1,5 +1,5 @@
-const CACHE_NAME = 'ec-eclassroom-v14';
-const SW_VERSION = '2026-02-28-3';
+const CACHE_NAME = 'ec-eclassroom-v15';
+const SW_VERSION = '2026-02-28-4';
 const CORE_ASSETS = [
   './',
   './index.html',
