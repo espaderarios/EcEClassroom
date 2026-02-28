@@ -409,6 +409,7 @@
       background: var(--surface);
       padding: 10px;
       overflow: auto;
+      overscroll-behavior: contain;
     }
 
     .crossword-grid-board {
@@ -604,6 +605,12 @@
       padding: clamp(8px, 2.4vw, 14px);
       overflow: auto;
       max-width: 100%;
+      overscroll-behavior: contain;
+    }
+
+    .crossword-grid.dragging,
+    .matching-board.dragging {
+      cursor: grabbing;
     }
 
     .matching-columns {
@@ -734,10 +741,14 @@
 
       .crossword-grid {
         padding: 8px;
+        touch-action: none;
+        cursor: grab;
       }
 
       .matching-board {
         padding: 10px;
+        touch-action: none;
+        cursor: grab;
       }
     }
 
@@ -842,11 +853,6 @@
     }
 
     @media (max-width: 420px) {
-      .crossword-grid-board {
-        transform: scale(0.88);
-        transform-origin: top center;
-      }
-
       .crossword-grid {
         max-height: 56vh;
       }
@@ -1100,6 +1106,6 @@
 
   <div id="featuresBottomNav"></div>
 
-  <script src="features.js?v=20260228c"></script>
+  <script src="features.js?v=20260228d"></script>
 </body>
 </html>

@@ -635,6 +635,63 @@
     });
   }
 
+  function bindMobileDragPan(targetSelector, ignoreSelector) {
+    const element = document.querySelector(targetSelector);
+    if (!element || element.dataset.panBound === "true") return;
+
+    element.dataset.panBound = "true";
+    let dragging = false;
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    const isMobileViewport = () => window.matchMedia("(max-width: 640px)").matches;
+
+    element.addEventListener("pointerdown", (event) => {
+      if (!isMobileViewport()) return;
+      if (event.pointerType === "mouse") return;
+      if (ignoreSelector && event.target instanceof Element && event.target.closest(ignoreSelector)) return;
+
+      dragging = true;
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+      startLeft = element.scrollLeft;
+      startTop = element.scrollTop;
+      element.classList.add("dragging");
+
+      if (typeof element.setPointerCapture === "function") {
+        try {
+          element.setPointerCapture(pointerId);
+        } catch {
+        }
+      }
+    }, { passive: true });
+
+    element.addEventListener("pointermove", (event) => {
+      if (!dragging || event.pointerId !== pointerId) return;
+      const deltaX = event.clientX - startX;
+      const deltaY = event.clientY - startY;
+      element.scrollLeft = startLeft - deltaX;
+      element.scrollTop = startTop - deltaY;
+      event.preventDefault();
+    }, { passive: false });
+
+    const endDrag = (event) => {
+      if (!dragging) return;
+      if (event && event.pointerId !== undefined && pointerId !== null && event.pointerId !== pointerId) return;
+      dragging = false;
+      pointerId = null;
+      element.classList.remove("dragging");
+    };
+
+    element.addEventListener("pointerup", endDrag);
+    element.addEventListener("pointercancel", endDrag);
+    element.addEventListener("pointerleave", endDrag);
+  }
+
   function updateStickyActionBar() {
     const bar = byId("sticky-action-bar");
     const primary = byId("sticky-primary-btn");
@@ -1480,8 +1537,8 @@
 
       input.addEventListener("input", () => {
         const key = String(input.dataset.key || "");
-        const direction = resolveDirectionForKey(key, state.crossword.typingDirection, false);
-        setCrosswordTypingDirection(direction);
+        // Always use last selected direction for auto-advance
+        const direction = state.crossword.typingDirection;
 
         const normalized = input.value.replace(/[^A-Za-z0-9]/g, "").slice(-1).toUpperCase();
         input.value = normalized;
@@ -1538,8 +1595,8 @@
         }
 
         if (event.key === "Backspace" && !input.value) {
-          const direction = resolveDirectionForKey(key, state.crossword.typingDirection, false);
-          setCrosswordTypingDirection(direction);
+          // Always use last selected direction for backspace navigation
+          const direction = state.crossword.typingDirection;
           const previousKey = getAdjacentKey(key, direction, -1);
           if (previousKey) {
             const previousInput = byId(getCrosswordInputId(previousKey));
@@ -3003,11 +3060,14 @@
     }
 
     renderBottomNav();
+    document.body.classList.add("bottom-nav-visible");
     bindRecoveryActions();
     setupFeaturePanels();
     bindCrossword();
     bindMatching();
     bindWordScramble();
+    bindMobileDragPan(".crossword-grid", "input, button, select, textarea");
+    bindMobileDragPan("#matching-board", ".match-item, button, input, select, textarea");
     updateStickyActionBar();
 
     window.addEventListener("beforeunload", saveFeaturesSession);
