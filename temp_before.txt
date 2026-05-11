@@ -1,0 +1,1872 @@
+window.currentStudent =
+  JSON.parse(localStorage.getItem("currentStudent") || "null");
+
+window.currentTheme =
+  localStorage.getItem("selectedTheme") ||
+  localStorage.getItem("flashcard-theme") ||
+  "light";
+
+var userSettings = null;
+function renderTeacherQuizListLegacy() {
+  console.warn("renderTeacherQuizListLegacy() is deprecated; returning modal-centric layout instead.");
+  return renderTeacherQuizList();
+}
+
+function getTeacherQuestionInputsMarkup() {
+  if (!Array.isArray(teacherQuestions) || teacherQuestions.length === 0) {
+    return `
+      <div class="rounded-xl border border-dashed p-6 text-center" style="border-color: var(--border); color: var(--secondary-text);">
+        <p class="text-lg font-semibold mb-2">No questions yet</p>
+        <p class="text-sm">Use "Add Question" to create your first question.</p>
+      </div>
+    `;
+  }
+
+  return teacherQuestions.map((q, i) => `
+    <div class="p-4 rounded-xl" style="background: var(--card-bg);">
+      <input
+        placeholder="Question"
+        class="w-full mb-2 px-3 py-2 rounded-lg"
+        style="background: var(--card-bg); color: var(--text); border: 1px solid var(--primary); border-radius: var(--radius);"
+        value="${q.question}"
+        oninput="updateTeacherQuestion(${i}, 'question', this.value)"
+      />
+      ${q.options.map((opt, j) => `
+        <div class="flex items-center mb-2">
+          <span style="width:20px; font-weight:600; color: var(--text);">${String.fromCharCode(65 + j)}.</span>
+          <input
+            placeholder="Option ${j + 1}"
+            class="w-full px-3 py-2 rounded-lg"
+            style="background: var(--card-bg); color: var(--text); border: 1px solid var(--primary); border-radius: var(--radius);"
+            value="${opt}"
+            oninput="updateTeacherOption(${i}, ${j}, this.value)"
+          />
+        </div>
+      `).join("")}
+      <input
+        placeholder="Correct answer (letter, e.g., A)"
+        class="w-full px-3 py-2 rounded-lg"
+        style="background: var(--card-bg); color: var(--text); border: 1px solid var(--primary); border-radius: var(--radius);"
+        value="${q.correct}"
+        oninput="updateTeacherQuestion(${i}, 'correct', this.value.toUpperCase())"
+      />
+    </div>
+  `).join("");
+}
+
+function openTeacherPreviewModal(fromCreator = false) {
+  const modal = document.getElementById('teacher-preview-modal');
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.remove('hidden');
+
+  if (fromCreator) {
+    queuedTeacherModalId = null;
+  }
+}
+
+const ICON_LIBRARY = {
+  default: { file: "icons/default.svg", alt: "Interface icon" }
+};
+
+function toKebabCase(value) {
+  return String(value)
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[_\s]+/g, "-")
+    .toLowerCase();
+}
+
+function toTitleCase(value) {
+  return String(value)
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function ensureIconDefinition(key) {
+  if (!key) {
+    return null;
+  }
+
+  if (!ICON_LIBRARY[key]) {
+    const fileName = toKebabCase(key);
+    ICON_LIBRARY[key] = {
+      file: `icons/${fileName}.svg`,
+      alt: `${toTitleCase(key) || "Interface"} icon`
+    };
+  }
+
+  return ICON_LIBRARY[key];
+}
+
+const LEGACY_ICON_MAP = {
+  "≡ƒôÜ": "browse",
+  "≡ƒÅá": "home",
+  "≡ƒôä": "pdfs",
+  "≡ƒôü": "import",
+  "≡ƒÄ¿": "themes",
+  "≡ƒæñ": "profile",
+  "≡ƒÜÇ": "start",
+  "≡ƒùæ": "delete",
+  "≡ƒùæ∩╕Å": "delete",
+  "≡ƒôï": "code",
+  "≡ƒôè": "analysis",
+  "≡ƒÆ╛": "save",
+  "≡ƒôñ": "upload",
+  "≡ƒÅ½": "school",
+  "≡ƒôû": "subjects",
+  "≡ƒÄô": "yearLevel",
+  "≡ƒô¥": "quiz",
+  "≡ƒÅå": "achievement",
+  "≡ƒÄë": "success",
+  "≡ƒæì": "warning",
+  "≡ƒÆ¬": "info",
+  "≡ƒöù": "googleDisconnected",
+  "Γ£à": "success",
+  "Γ£ô": "success",
+  "≡ƒÖê": "timerHide",
+  "≡ƒæü∩╕Å": "timerShow",
+  "≡ƒñû": "ai",
+  "≡ƒÆ╝": "headline",
+  "≡ƒº╛": "bio",
+  "≡ƒôì": "location",
+  "≡ƒºá": "cards",
+  "≡ƒùé": "sets",
+  "≡ƒÄ»": "attempts",
+  "ΓÜí": "circuits",
+  "Γ₧ù": "math",
+  "≡ƒö¼": "science",
+  "≡ƒÅ¢∩╕Å": "history",
+  "≡ƒÆ╗": "computer",
+  "≡ƒç╡≡ƒç¡": "filipino",
+  "≡ƒôÿ": "english",
+  "≡ƒº¼": "biology",
+  "ΓÜÖ∩╕Å": "management",
+  "≡ƒÆí": "innovation",
+  "≡ƒîì": "geography",
+  "ΓÜù∩╕Å": "chemistry",
+  "≡ƒ¬É": "physics",
+  "≡ƒöì": "reference",
+  "Γ¥ô": "instructions",
+  "ΓåÉ": "back",
+  "ΓåÆ": "forward",
+  "Γ¼à∩╕Å": "back",
+  "Γ₧í∩╕Å": "forward",
+  "ΓÅ▒∩╕Å": "time",
+  "ΓÅ░": "timer",
+  "Γû╢": "play",
+  "ΓÅ╕": "pause",
+  "Γû╛": "expandMore",
+  "Γû┤": "expandLess",
+  "Γ¥î": "error",
+  "Γ£ù": "error",
+  "ΓÜá∩╕Å": "warning",
+  "Γ£ò": "add",
+  "Γ₧ò": "add",
+  "ΓÅ│": "download",
+  "Γ£ë∩╕Å": "email",
+  "Γÿü∩╕Å": "cloudSync",
+  "Γåö∩╕Å": "forward",
+  "Γû╡": "copy"
+};
+
+function resolveIconKey(raw) {
+  if (!raw) return null;
+  if (ICON_LIBRARY.hasOwnProperty(raw)) return raw;
+  if (LEGACY_ICON_MAP.hasOwnProperty(raw)) return LEGACY_ICON_MAP[raw];
+  return raw;
+}
+
+function getIconDefinition(raw) {
+  const key = resolveIconKey(raw);
+  if (key) {
+    const definition = ICON_LIBRARY[key] || ensureIconDefinition(key);
+    if (definition) {
+      return definition;
+    }
+  }
+  return ICON_LIBRARY.default || null;
+}
+
+function escapeAttribute(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function tryParseLooseJsonString(value) {
+  if (!value || typeof value !== 'string') return null;
+  let trimmed = value.trim();
+  if (!trimmed) return null;
+  trimmed = trimmed.replace(/^Answer:\s*/i, '').replace(/^Question:\s*/i, '').trim();
+  if (!trimmed) return null;
+  if (!/^[{\[]/.test(trimmed)) return null;
+  const candidate = trimmed.replace(/,+$/, '');
+  try {
+    return JSON.parse(candidate);
+  } catch (err) {
+    return null;
+  }
+}
+
+function decodeJsonFragment(value) {
+  if (typeof value !== 'string') return value;
+  try {
+    const safeValue = value
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/\t/g, '\\t');
+    return JSON.parse(`"${safeValue}"`);
+  } catch (err) {
+    return value
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\r/g, '\r')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\');
+  }
+}
+
+function normalizeCardText(raw, preferredKeys = [], fallback = '') {
+  if (raw == null) {
+    return fallback;
+  }
+
+  if (typeof raw !== 'string') {
+    return String(raw);
+  }
+
+  let text = raw.trim();
+  if (!text) return fallback;
+
+  text = text.replace(/^Answer:\s*/i, '').replace(/^Question:\s*/i, '').trim();
+  if (!text) return fallback;
+
+  const parsed = tryParseLooseJsonString(text);
+  if (parsed) {
+    const container = Array.isArray(parsed) ? parsed[0] : parsed;
+    if (container && typeof container === 'object') {
+      for (const key of preferredKeys) {
+        const candidate = container[key];
+        if (typeof candidate === 'string' && candidate.trim()) {
+          return candidate.trim();
+        }
+      }
+    }
+  }
+
+  const loweredKeys = preferredKeys.map(key => key.toLowerCase());
+  const fieldPattern = /"(question|answer|front|back|prompt|response|explanation)"\s*:\s*"([^\"]*)"/gi;
+  let match;
+  while ((match = fieldPattern.exec(text))) {
+    const key = match[1].toLowerCase();
+    const value = decodeJsonFragment(match[2]).trim();
+    if (!value) continue;
+    if (loweredKeys.length === 0 || loweredKeys.includes(key)) {
+      return value;
+    }
+  }
+
+  return text;
+}
+
+function getCardDisplayText(card, index = null) {
+  const position = typeof index === 'number' && index >= 0 ? index + 1 : null;
+  const questionFallback = position ? `Question ${position}` : '';
+  const answerFallback = position ? `Answer ${position}` : '';
+
+  const rawQuestion = normalizeCardText(card?.question, ['question', 'front', 'prompt'], '');
+  const question = (rawQuestion && rawQuestion.trim()) || questionFallback || '';
+
+  const rawAnswer = normalizeCardText(card?.answer, ['answer', 'back', 'response', 'explanation'], '');
+  const baseAnswer = rawAnswer && rawAnswer.trim() ? rawAnswer : '';
+  const defaultAnswer = answerFallback || 'No answer provided yet.';
+
+  let answer = baseAnswer || defaultAnswer;
+  if (answer && question && answer.trim().toLowerCase() === question.trim().toLowerCase()) {
+    answer = defaultAnswer;
+  }
+
+  return {
+    question,
+    answer
+  };
+}
+
+function renderIcon(raw, altText, size = 32, className = "") {
+  const iconDef = getIconDefinition(raw);
+  if (!iconDef) {
+    return altText ? `<span class="sr-only">${altText}</span>` : "";
+  }
+
+  const widthAttr = size ? ` width="${size}" height="${size}"` : "";
+  const responsiveClassName = ["app-icon", className].filter(Boolean).join(" ");
+  const classAttr = ` class="${escapeAttribute(responsiveClassName)}"`;
+  const styleAttr = size ? ` style="--icon-size:${size}px;"` : "";
+  const alt = escapeAttribute(altText || iconDef.alt || "Icon");
+  const src = escapeAttribute(iconDef.file);
+
+  return `<img src="${src}" alt="${alt}" loading="lazy"${widthAttr}${classAttr}${styleAttr}>`;
+}
+
+const LEGACY_ICON_ALTS = {
+  "Browse": "Browse icon",
+  "Home": "Home icon",
+  "PDF": "PDF icon",
+  "Imported PDF": "Imported PDF icon",
+  "Themes": "Themes icon",
+  "Profile": "Profile icon",
+  "Start": "Start icon",
+  "Delete": "Delete icon",
+  "Code": "Code icon",
+  "Analytics": "Analytics icon",
+  "Save": "Save icon",
+  "Upload": "Upload icon",
+  "School": "School icon",
+  "Subjects": "Subjects icon",
+  "Year Level": "Year Level icon",
+  "Quiz": "Quiz icon",
+  "Achievement": "Achievement icon",
+  "Success": "Success icon",
+  "Warning": "Warning icon",
+  "Info": "Info icon",
+  "Google Disconnected": "Google disconnected icon",
+  "Success": "Success icon",
+  "Success": "Success icon",
+  "Hide Timer": "Hide timer icon",
+  "Show Timer": "Show timer icon",
+  "AI": "AI icon",
+  "Headline": "Headline icon",
+  "Bio": "Bio icon",
+  "Location": "Location icon",
+  "Cards": "Cards icon",
+  "Sets": "Sets icon",
+  "Attempts": "Attempts icon",
+  "Circuits": "Circuits icon",
+  "Math": "Math icon",
+  "Science": "Science icon",
+  "History": "History icon",
+  "Computer Science": "Computer science icon",
+  "Filipino": "Filipino icon",
+  "English": "English icon",
+  "Biology": "Biology icon",
+  "Management": "Management icon",
+  "Innovation": "Innovation icon",
+  "Geography": "Geography icon",
+  "Chemistry": "Chemistry icon",
+  "Physics": "Physics icon",
+  "Back": "Back icon",
+  "Forward": "Forward icon",
+  "Back": "Back icon",
+  "Forward": "Forward icon",
+  "Time": "Time icon",
+  "Timer": "Timer icon",
+  "Play": "Play icon",
+  "Pause": "Pause icon",
+  "Expand": "Expand icon",
+  "Collapse": "Collapse icon",
+  "Error": "Error icon",
+  "Error": "Error icon",
+  "Warning": "Warning icon",
+  "Add": "Add icon",
+  "Add": "Add icon",
+  "Download": "Download icon",
+  "Email": "Email icon",
+  "Cloud Sync": "Cloud sync icon",
+  "Forward": "Forward icon",
+  "Copy": "Copy icon"
+};
+
+const LEGACY_ICON_PATTERN = /≡ƒ[^\s<"']+|Γ(?!Ç)[^\s<"']+/g;
+
+function renderLegacyIcon(raw, altText, size = 20, className = "inline-icon") {
+  const key = resolveIconKey(raw) || raw;
+  const alt = altText || LEGACY_ICON_ALTS[raw] || (ICON_LIBRARY[key]?.alt) || "Interface icon";
+  return renderIcon(key, alt, size, className);
+}
+
+function replaceLegacyIcons(html) {
+  if (
+    typeof html !== "string" ||
+    (html.indexOf("≡ƒ") === -1 && html.indexOf("Γ") === -1)
+  ) {
+    return html;
+  }
+
+  return html.replace(LEGACY_ICON_PATTERN, (match) => {
+    const alt = LEGACY_ICON_ALTS[match] || "Interface icon";
+    return renderLegacyIcon(match, alt, 20, "inline-icon") || match;
+  });
+}
+
+function setInnerHtml(target, html) {
+  if (!target) return;
+  target.innerHTML = replaceLegacyIcons(html);
+}
+
+function getContrastColor(hexColor, lightFallback = "#ffffff", darkFallback = "#111827") {
+  if (!hexColor || typeof hexColor !== "string") {
+    return lightFallback;
+  }
+
+  const raw = hexColor.trim().replace(/^#/, "");
+  if (!raw) {
+    return lightFallback;
+  }
+
+  const expanded = raw.length === 3
+    ? raw.split("").map((c) => c + c).join("")
+    : raw.slice(0, 6);
+
+  if (expanded.length !== 6) {
+    return lightFallback;
+  }
+
+  const r = parseInt(expanded.slice(0, 2), 16);
+  const g = parseInt(expanded.slice(2, 4), 16);
+  const b = parseInt(expanded.slice(4, 6), 16);
+
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+    return lightFallback;
+  }
+
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 140 ? darkFallback : lightFallback;
+}
+
+function hexToRgba(hexColor, alpha = 1) {
+  if (!hexColor || typeof hexColor !== "string") {
+    return `rgba(30, 64, 175, ${Math.min(Math.max(alpha, 0), 1)})`;
+  }
+
+  const sanitized = hexColor.trim().replace(/^#/, "");
+  if (!sanitized) {
+    return `rgba(30, 64, 175, ${Math.min(Math.max(alpha, 0), 1)})`;
+  }
+
+  const normalized = sanitized.length === 3
+    ? sanitized.split("").map((c) => c + c).join("")
+    : sanitized.slice(0, 6);
+
+  if (normalized.length !== 6) {
+    return `rgba(30, 64, 175, ${Math.min(Math.max(alpha, 0), 1)})`;
+  }
+
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+
+  if ([r, g, b].some((channel) => Number.isNaN(channel))) {
+    return `rgba(30, 64, 175, ${Math.min(Math.max(alpha, 0), 1)})`;
+  }
+
+  const clampedAlpha = Math.min(Math.max(alpha, 0), 1);
+  return `rgba(${r}, ${g}, ${b}, ${clampedAlpha})`;
+}
+
+const defaultConfig = {
+  app_title: "Flashcard Study",
+  app_subtitle: "Create custom subjects and master your knowledge",
+  background_color: "#f0f4f8",
+  card_background: "#ffffff",
+  primary_color: "#1e3a8a",
+  primary_dark: "#172554",
+  secondary_color: "#1d4ed8",
+  accent_color: "#3b82f6",
+  text_color: "#111827",
+  text_muted: "#6b7280"
+};
+
+const DEFAULT_SETTINGS = {
+  theme: "light",
+  colors: {
+    primary: "#1e3a8a",
+    primaryHover: "#1e40af",
+    primaryDark: "#172554",
+    secondary: "#1e40af",
+    secondaryDark: "#1e3a8a",
+    accent: "#3b82f6",
+    accentDark: "#1e40af",
+    background: "#ffffff",
+    card: "#ffffff",
+    surface: "#f3f4f6",
+    surfaceHover: "#e5e7eb",
+    text: "#111827",
+    textMuted: "#6b7280",
+    textSecondary: "#4b5563",
+    success: "#16a34a",
+    successDark: "#15803d",
+    error: "#dc2626",
+    errorDark: "#b91c1c",
+    warning: "#f59e0b",
+    warningDark: "#b45309",
+    flashcardBackground: "#ffffff",
+    border: "#e5e7eb",
+    borderHover: "#d1d5db"
+  },
+  font: {
+    family: "'Inter', system-ui, -apple-system, sans-serif",
+    headingFamily: "'Inter', system-ui, -apple-system, sans-serif",
+    size: 14,
+    lineHeight: 1.6,
+    weightNormal: "400",
+    weightMedium: "500",
+    weightSemibold: "600",
+    weightBold: "700"
+  },
+  layout: {
+    radius: 16,
+    cardSize: "normal",
+    animation: "flip"
+  },
+  layoutMode: "mobile"
+};
+
+const THEME_PRESETS = {
+
+  light: {
+    colors: {
+      primary: "#1e3a8a",
+      primaryHover: "#1e40af",
+      primaryDark: "#172554",
+      secondary: "#1e40af",
+      secondaryDark: "#1e3a8a",
+      accent: "#3b82f6",
+      accentDark: "#1e40af",
+      background: "#ffffff",
+      card: "#ffffff",
+      surface: "#f3f4f6",
+      surfaceHover: "#e5e7eb",
+      text: "#111827",
+      textMuted: "#6b7280",
+      textSecondary: "#4b5563",
+      success: "#16a34a",
+      successDark: "#15803d",
+      error: "#dc2626",
+      errorDark: "#b91c1c",
+      warning: "#f59e0b",
+      warningDark: "#b45309",
+      border: "#e5e7eb",
+      borderHover: "#d1d5db"
+    },
+    fonts: {
+      family: "'Inter', system-ui, -apple-system, sans-serif",
+      headingFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      weightNormal: "400",
+      weightMedium: "500",
+      weightSemibold: "600",
+      weightBold: "700"
+    },
+    shadows: {
+      color: "rgba(17, 24, 39, 0.08)",
+      colorLg: "rgba(17, 24, 39, 0.14)"
+    },
+    glass: {
+      background: "rgba(255, 255, 255, 0.92)",
+      border: "rgba(191, 219, 254, 0.35)"
+    }
+  },
+
+  dark: {
+    colors: {
+      primary: "#3b82f6",
+      primaryHover: "#60a5fa",
+      primaryDark: "#1e3a8a",
+      secondary: "#1e40af",
+      secondaryDark: "#1e3a8a",
+      accent: "#bfdbfe",
+      accentDark: "#93c5fd",
+      background: "#0b1120",
+      card: "#111827",
+      surface: "#1f2937",
+      surfaceHover: "#273449",
+      text: "#f9fafb",
+      textMuted: "#cbd5f5",
+      textSecondary: "#93c5fd",
+      success: "#22c55e",
+      successDark: "#16a34a",
+      error: "#f87171",
+      errorDark: "#ef4444",
+      warning: "#fbbf24",
+      warningDark: "#f59e0b",
+      border: "#273449",
+      borderHover: "#334155"
+    },
+    fonts: {
+      family: "'Inter', system-ui, -apple-system, sans-serif",
+      headingFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      weightNormal: "400",
+      weightMedium: "500",
+      weightSemibold: "600",
+      weightBold: "700"
+    },
+    shadows: {
+      color: "rgba(15, 23, 42, 0.45)",
+      colorLg: "rgba(15, 23, 42, 0.6)"
+    },
+    glass: {
+      background: "rgba(17, 24, 39, 0.92)",
+      border: "rgba(59, 130, 246, 0.28)"
+    }
+  },
+
+  cyber: {
+    colors: {
+      primary: "#22d3ee",
+      primaryHover: "#06b6d4",
+      primaryDark: "#0891b2",
+      secondary: "#64748b",
+      secondaryDark: "#475569",
+      accent: "#a855f7",
+      accentDark: "#9333ea",
+      background: "#020617",
+      card: "#0c0a09",
+      surface: "#1c1917",
+      surfaceHover: "#292524",
+      text: "#ecfeff",
+      textMuted: "#a5f3fc",
+      textSecondary: "#67e8f9",
+      success: "#34d399",
+      successDark: "#10b981",
+      error: "#f87171",
+      errorDark: "#ef4444",
+      warning: "#fbbf24",
+      warningDark: "#f59e0b",
+      border: "#292524",
+      borderHover: "#3f3f46"
+    },
+    fonts: {
+      family: "'JetBrains Mono', monospace",
+      headingFamily: "'JetBrains Mono', monospace",
+      weightNormal: "400",
+      weightMedium: "500",
+      weightSemibold: "600",
+      weightBold: "700"
+    },
+    shadows: {
+      color: "rgba(0, 0, 0, 0.5)",
+      colorLg: "rgba(0, 0, 0, 0.7)"
+    },
+    glass: {
+      background: "rgba(12, 10, 9, 0.95)",
+      border: "rgba(34, 211, 238, 0.2)"
+    }
+  },
+
+  futuristic: {
+    colors: {
+      primary: "#00ffea",
+      primaryHover: "#00e6d4",
+      primaryDark: "#00ccbb",
+      secondary: "#64748b",
+      secondaryDark: "#475569",
+      accent: "#ff0080",
+      accentDark: "#e60073",
+      background: "#0a0a0a",
+      card: "#111111",
+      surface: "#1a1a1a",
+      surfaceHover: "#262626",
+      text: "#ffffff",
+      textMuted: "#b3b3b3",
+      textSecondary: "#cccccc",
+      success: "#00ff88",
+      successDark: "#00e67a",
+      error: "#ff4444",
+      errorDark: "#e63939",
+      warning: "#ffaa00",
+      warningDark: "#e69500",
+      border: "#333333",
+      borderHover: "#444444"
+    },
+    fonts: {
+      family: "'Orbitron', sans-serif",
+      headingFamily: "'Orbitron', sans-serif",
+      weightNormal: "400",
+      weightMedium: "500",
+      weightSemibold: "600",
+      weightBold: "700"
+    },
+    shadows: {
+      color: "rgba(0, 255, 234, 0.2)",
+      colorLg: "rgba(0, 255, 234, 0.4)"
+    },
+    glass: {
+      background: "rgba(17, 17, 17, 0.95)",
+      border: "rgba(0, 255, 234, 0.2)"
+    },
+    backgroundImage: "url('images/futuristic.svg')"
+  },
+
+  paper: {
+    colors: {
+      primary: "#92400e",
+      primaryHover: "#78350f",
+      primaryDark: "#5c2a0c",
+      secondary: "#a16207",
+      secondaryDark: "#854d0e",
+      accent: "#ea580c",
+      accentDark: "#c2410c",
+      background: "#fef3c7",
+      card: "#fffbeb",
+      surface: "#fef3c7",
+      surfaceHover: "#fde68a",
+      text: "#451a03",
+      textMuted: "#92400e",
+      textSecondary: "#78350f",
+      success: "#16a34a",
+      successDark: "#15803d",
+      error: "#dc2626",
+      errorDark: "#b91c1c",
+      warning: "#d97706",
+      warningDark: "#b45309",
+      border: "#fed7aa",
+      borderHover: "#fdba74"
+    },
+    fonts: {
+      family: "'Playfair Display', serif",
+      headingFamily: "'Playfair Display', serif",
+      weightNormal: "400",
+      weightMedium: "500",
+      weightSemibold: "600",
+      weightBold: "700"
+    },
+    shadows: {
+      color: "rgba(146, 64, 14, 0.15)",
+      colorLg: "rgba(146, 64, 14, 0.25)"
+    },
+    glass: {
+      background: "rgba(255, 251, 235, 0.95)",
+      border: "rgba(255, 255, 255, 0.3)"
+    }
+  },
+
+  midnight: {
+    colors: {
+      primary: "#818cf8",
+      primaryHover: "#6366f1",
+      primaryDark: "#4f46e5",
+      secondary: "#64748b",
+      secondaryDark: "#475569",
+      accent: "#a78bfa",
+      accentDark: "#8b5cf6",
+      background: "#0b1020",
+      card: "#121a33",
+      surface: "#1e293b",
+      surfaceHover: "#334155",
+      text: "#e0e7ff",
+      textMuted: "#94a3b8",
+      textSecondary: "#cbd5e1",
+      success: "#34d399",
+      successDark: "#10b981",
+      error: "#f87171",
+      errorDark: "#ef4444",
+      warning: "#fbbf24",
+      warningDark: "#f59e0b",
+      border: "#334155",
+      borderHover: "#475569"
+    },
+    fonts: {
+      family: "'Inter', system-ui, -apple-system, sans-serif",
+      headingFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      weightNormal: "400",
+      weightMedium: "500",
+      weightSemibold: "600",
+      weightBold: "700"
+    },
+    shadows: {
+      color: "rgba(0, 0, 0, 0.4)",
+      colorLg: "rgba(0, 0, 0, 0.6)"
+    },
+    glass: {
+      background: "rgba(18, 26, 51, 0.95)",
+      border: "rgba(129, 140, 248, 0.2)"
+    }
+  },
+
+  forest: {
+    colors: {
+      primary: "#16a34a",
+      primaryHover: "#15803d",
+      primaryDark: "#166534",
+      secondary: "#64748b",
+      secondaryDark: "#475569",
+      accent: "#84cc16",
+      accentDark: "#65a30d",
+      background: "#052e16",
+      card: "#064e3b",
+      surface: "#0f5132",
+      surfaceHover: "#14532d",
+      text: "#ecfdf5",
+      textMuted: "#86efac",
+      textSecondary: "#bbf7d0",
+      success: "#22c55e",
+      successDark: "#16a34a",
+      error: "#f87171",
+      errorDark: "#ef4444",
+      warning: "#f59e0b",
+      warningDark: "#d97706",
+      border: "#14532d",
+      borderHover: "#166534"
+    },
+    fonts: {
+      family: "'Inter', system-ui, -apple-system, sans-serif",
+      headingFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      weightNormal: "400",
+      weightMedium: "500",
+      weightSemibold: "600",
+      weightBold: "700"
+    },
+    shadows: {
+      color: "rgba(0, 0, 0, 0.4)",
+      colorLg: "rgba(0, 0, 0, 0.6)"
+    },
+    glass: {
+      background: "rgba(6, 78, 59, 0.95)",
+      border: "rgba(22, 163, 74, 0.2)"
+    }
+  },
+
+  sunset: {
+    colors: {
+      primary: "#f97316",
+      primaryHover: "#ea580c",
+      primaryDark: "#c2410c",
+      secondary: "#64748b",
+      secondaryDark: "#475569",
+      accent: "#f59e0b",
+      accentDark: "#d97706",
+      background: "#fff7ed",
+      card: "#ffedd5",
+      surface: "#fed7aa",
+      surfaceHover: "#fdba74",
+      text: "#7c2d12",
+      textMuted: "#9a3412",
+      textSecondary: "#c2410c",
+      success: "#16a34a",
+      successDark: "#15803d",
+      error: "#dc2626",
+      errorDark: "#b91c1c",
+      warning: "#d97706",
+      warningDark: "#b45309",
+      border: "#fed7aa",
+      borderHover: "#fdba74"
+    },
+    fonts: {
+      family: "'Inter', system-ui, -apple-system, sans-serif",
+      headingFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      weightNormal: "400",
+      weightMedium: "500",
+      weightSemibold: "600",
+      weightBold: "700"
+    },
+    shadows: {
+      color: "rgba(249, 115, 22, 0.15)",
+      colorLg: "rgba(249, 115, 22, 0.25)"
+    },
+    glass: {
+      background: "rgba(255, 237, 213, 0.95)",
+      border: "rgba(255, 255, 255, 0.3)"
+    }
+  },
+
+  rose: {
+    colors: {
+      primary: "#e11d48",
+      background: "#fff1f2",
+      card: "#ffe4e6",
+      text: "#4c0519"
+    }
+  },
+
+  graphite: {
+    colors: {
+      primary: "#38bdf8",
+      background: "#0f172a",
+      card: "#111827",
+      text: "#cbd5f5"
+    },
+    font: {
+      family: "Roboto"
+    }
+  },
+
+  lavender: {
+    colors: {
+      primary: "#8b5cf6",
+      background: "#f5f3ff",
+      card: "#ede9fe",
+      text: "#312e81"
+    }
+  },
+
+  coffee: {
+    colors: {
+      primary: "#78350f",
+      background: "#faf3e0",
+      card: "#f3e5ab",
+      text: "#3f1d0b"
+    },
+    font: {
+      family: "Playfair Display"
+    }
+  },
+
+  mint: {
+    colors: {
+      primary: "#14b8a6",
+      background: "#ecfeff",
+      card: "#cffafe",
+      text: "#134e4a"
+    }
+  },
+
+  blackpink: {
+    colors: {
+      primary: "#E1CBD8",
+      background: "#503A49",
+      card: "#947284",
+      text: "#1a1a1a"
+    },
+    font: { family: "Google Sans" },
+    backgroundImage: "url('images/blackpink.svg')"
+  },
+
+  bts: {
+    colors: {
+      primary: "#6a5acd",
+      background: "#f3f0ff",
+      card: "#e6e1ff",
+      text: "#111"
+    },
+    font: { family: "Poppins" },
+    backgroundImage: "url('images/bts.svg')"
+  },
+
+  twice: {
+    colors: {
+      primary: "#ff6ec7",
+      background: "#fff5fa",
+      card: "#ffe0f2",
+      text: "#111"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/twice.svg')"
+  },
+
+  seventeen: {
+    colors: {
+      primary: "#9d8df1",
+      background: "#f6f3ff",
+      card: "#e8e0ff",
+      text: "#111"
+    },
+    font: { family: "Poppins" },
+    backgroundImage: "url('images/seventeen.svg')"
+  },
+
+  straykids: {
+    colors: {
+      primary: "#bd2222",
+      background: "#fff5f5",
+      card: "#ffe0e0",
+      text: "#111"
+    },
+    font: { family: "Poppins" },
+    backgroundImage: "url('images/straykids.svg')"
+  },
+
+  exo: {
+    colors: {
+      primary: "#111",
+      background: "#e5e7eb",
+      card: "#ffffff",
+      text: "#000"
+    },
+    font: { family: "Poppins" },
+    backgroundImage: "url('images/exo.svg')"
+  },
+
+  redvelvet: {
+    colors: {
+      primary: "#e63946",
+      background: "#fff4f4",
+      card: "#ffe1e1",
+      text: "#111"
+    },
+    font: { family: "Poppins" },
+    backgroundImage: "url('images/redvelvet.svg')"
+  },
+
+  itzy: {
+    colors: {
+      primary: "#FF1E56",
+      background: "#FFE600",
+      card: "#00D0FF",
+      text: "#111"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/itzy.svg')"
+  },
+
+  newjeans: {
+    colors: {
+      primary: "#97C9DE",
+      background: "#DCB69F",
+      card: "#24537D",
+      text: "#111"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/newjeans.svg')"
+  },
+
+  jungle: {
+    colors: {
+      primary: "#1e5128",
+      background: "#d4f4dd",
+      card: "#a8e6cf",
+      text: "#0b3d0b"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/jungle.svg')"
+  },
+
+  safari: {
+    colors: {
+      primary: "#c19a6b",
+      background: "#fff8f0",
+      card: "#f5e0c3",
+      text: "#5a3e2b"
+    },
+    font: { family: "Roboto" },
+    backgroundImage: "url('images/safari.svg')"
+  },
+
+  ocean: {
+    colors: {
+      primary: "#0288d1",
+      background: "#e0f7fa",
+      card: "#b2ebf2",
+      text: "#014f86"
+    },
+    font: { family: "Poppins" },
+    backgroundImage: "url('images/ocean.svg')"
+  },
+
+  lake: {
+    colors: {
+      primary: "#1fa2a6",
+      background: "#d0f0ea",
+      card: "#a0e3d8",
+      text: "#054d44"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/lake.svg')"
+  },
+
+  animals_jungle: {
+    colors: {
+      primary: "#1e5128",
+      background: "#d4f4dd",
+      card: "#a8e6cf",
+      text: "#0b3d0b"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/animals_jungle.svg')"
+  },
+
+  animals_safari: {
+    colors: {
+      primary: "#c19a6b",
+      background: "#fff8f0",
+      card: "#f5e0c3",
+      text: "#5a3e2b"
+    },
+    font: { family: "Roboto" },
+    backgroundImage: "url('images/animals_safari.svg')"
+  },
+
+  animals_ocean: {
+    colors: {
+      primary: "#0288d1",
+      background: "#e0f7fa",
+      card: "#b2ebf2",
+      text: "#014f86"
+    },
+    font: { family: "Poppins" },
+    backgroundImage: "url('images/animals_ocean.svg')"
+  },
+
+  animals_pets: {
+    colors: {
+      primary: "#ff6f61",
+      background: "#fff0f0",
+      card: "#ffe6e6",
+      text: "#331a1a"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/pets.svg')"
+  },
+
+  animals_arctic: {
+    colors: {
+      primary: "#00bcd4",
+      background: "#e0f7fa",
+      card: "#b2ebf2",
+      text: "#002f3d"
+    },
+    font: { family: "Roboto" },
+    backgroundImage: "url('images/arctic.svg')"
+  },
+
+  animals_rainforest: {
+    colors: {
+      primary: "#2e7d32",
+      background: "#dcedc8",
+      card: "#aed581",
+      text: "#1b5e20"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/rainforest.svg')"
+  },
+
+  animals_desert: {
+    colors: {
+      primary: "#ff9800",
+      background: "#fff3e0",
+      card: "#ffe0b2",
+      text: "#5d4037"
+    },
+    font: { family: "Poppins" },
+    backgroundImage: "url('images/desert.svg')"
+  },
+
+  animals_farm: {
+    colors: {
+      primary: "#f57f17",
+      background: "#fff8e1",
+      card: "#ffecb3",
+      text: "#4e342e"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/farm.svg')"
+  },
+
+  animals_jungle_night: {
+    colors: {
+      primary: "#0d3b1e",
+      background: "#081f0f",
+      card: "#14391c",
+      text: "#c8f5d9"
+    },
+    font: { family: "Roboto" },
+    backgroundImage: "url('images/jungle_night.svg')"
+  },
+
+  animals_deep_sea: {
+    colors: {
+      primary: "#005f73",
+      background: "#001219",
+      card: "#0a9396",
+      text: "#e0fbfc"
+    },
+    font: { family: "Poppins" },
+    backgroundImage: "url('images/deep_sea.svg')"
+  },
+
+  animals_butterflies: {
+    colors: {
+      primary: "#f48fb1",
+      background: "#fff0f6",
+      card: "#ffd6e8",
+      text: "#4a148c"
+    },
+    font: { family: "Open Sans" },
+    backgroundImage: "url('images/butterflies.svg')"
+  },
+
+  animals_tropical_birds: {
+    colors: {
+      primary: "#ff5722",
+      background: "#fff3e0",
+      card: "#ffccbc",
+      text: "#3e2723"
+    },
+    font: { family: "Roboto" },
+    backgroundImage: "url('images/tropical_birds.svg')"
+  }
+};
+
+const BUILT_IN_SETS = {
+  circuits: {
+    subject: { name: "Circuits", icon: "circuits" },
+    set: { name: "Circuit Analysis", description: "Learn to analyze and solve electrical circuits" },
+    cards: [
+      {
+        question: "Analyze this series circuit and find the total resistance:",
+        questionImage: "CircuitsImg/CircuitsQ1.jpeg",
+        answer: {
+          mathml: `
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+async function loadQuizzesFromBackend() {
+    <mi>i</mi>
+    <mn>2</mn>
+  </msub>
+  <mo>=</mo>
+  <mn>2.5</mn>
+  <mtext>&#xA0;</mtext>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+  <mspace width="1em" />
+  <msub>
+    <mi>i</mi>
+    <mn>3</mn>
+  </msub>
+  <mo>=</mo>
+  <mn>2</mn>
+  <mtext>&#xA0;</mtext>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+</math>
+`,
+        },
+        answerImage: "CircuitsImg/CircuitsA1.jpeg",
+        imageCredit: "Mondal, M. (n.d.). Solved problems on super mesh analysis. https://www.engineeringdevotion.com/electric-circuits/solved-problems/super-mesh-analysis.html"
+      },
+      {
+        question: "Calculate the current through this parallel circuit:",
+        questionImage: "CircuitsImg/CircuitsQ2.jpeg",
+        answer: {
+          mathml: `
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <msub>
+    <mi>I</mi>
+    <mn>1</mn>
+  </msub>
+  <mo>=</mo>
+  <mo>&#x2212;<!-- ΓêÆ --></mo>
+  <mn>3</mn>
+  <mtext>&#xA0;</mtext>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+  <mspace width="1em" />
+  <msub>
+    <mi>I</mi>
+    <mn>2</mn>
+  </msub>
+  <mo>=</mo>
+  <mo>&#x2212;<!-- ΓêÆ --></mo>
+  <mn>2</mn>
+  <mtext>&#xA0;</mtext>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+  <mspace width="1em" />
+  <msub>
+    <mi>I</mi>
+    <mn>3</mn>
+  </msub>
+  <mo>=</mo>
+  <mn>0</mn>
+  <mtext>&#xA0;</mtext>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+</math>
+`,
+        },
+        answerImage: "CircuitsImg/CircuitsA2.jpeg",
+        imageCredit: "Mondal, M. (n.d.). Solved problems on super mesh analysis. https://www.engineeringdevotion.com/electric-circuits/solved-problems/super-mesh-analysis.html"
+      },
+      {
+        question: "Find the voltage across each resistor in this circuit:",
+        questionImage: "CircuitsImg/CircuitsQ3.jpeg",
+        answer: {
+          mathml: `
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true">
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>1</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>7.403</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>2</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>1.26</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>3</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>5.97</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+  </mtable>
+</math>
+`,
+        },
+        answerImage: "CircuitsImg/CircuitsA3.jpeg",
+        imageCredit: "Mondal, M. (n.d.). Solved problems on super mesh analysis. https://www.engineeringdevotion.com/electric-circuits/solved-problems/super-mesh-analysis.html"
+      },
+            {
+        question: "Find the voltage across each resistor in this circuit:",
+        questionImage: "CircuitsImg/CircuitsQ4.jpeg",
+        answer: {
+          mathml: `
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true">
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>1</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>3.33</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>2</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>0.3298</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>3</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>1.508</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>4</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>2.497</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+  </mtable>
+</math>
+`,
+        },
+        answerImage: "CircuitsImg/CircuitsA4.jpeg",
+        imageCredit: "Mondal, M. (n.d.). Solved problems on super mesh analysis. https://www.engineeringdevotion.com/electric-circuits/solved-problems/super-mesh-analysis.html"
+      },
+            {
+        question: "Find the voltage across each resistor in this circuit:",
+        questionImage: "CircuitsImg/CircuitsQ5.jpeg",
+        answer: {
+          mathml: `
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <msub>
+    <mi>I</mi>
+    <mn>1</mn>
+  </msub>
+  <mo>=</mo>
+  <mo>&#x2212;<!-- ΓêÆ --></mo>
+  <mn>1.455</mn>
+  <mtext>&#xA0;</mtext>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+  <mspace width="1em" />
+  <msub>
+    <mi>I</mi>
+    <mn>2</mn>
+  </msub>
+  <mo>=</mo>
+  <mn>0.5455</mn>
+  <mtext>&#xA0;</mtext>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+</math>
+`,
+        },
+        answerImage: "CircuitsImg/CircuitsA5.jpeg",
+        imageCredit: "Mondal, M. (n.d.). Solved problems on super mesh analysis. https://www.engineeringdevotion.com/electric-circuits/solved-problems/super-mesh-analysis.html"
+      },
+            {
+        question: "Find the voltage across each resistor in this circuit:",
+        questionImage: "CircuitsImg/CircuitsQ6.jpeg",
+        answer: {
+          mathml: `
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true">
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>1</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>4.92</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>2</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>0.25</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd>
+        <msub>
+          <mi>I</mi>
+          <mn>3</mn>
+        </msub>
+      </mtd>
+      <mtd>
+        <mi></mi>
+        <mo>=</mo>
+        <mn>4.25</mn>
+        <mtext>&#xA0;</mtext>
+        <mrow class="MJX-TeXAtom-ORD">
+          <mi mathvariant="normal">A</mi>
+        </mrow>
+      </mtd>
+    </mtr>
+  </mtable>
+</math>
+`,
+        },
+        answerImage: "CircuitsImg/CircuitsA6.jpeg",
+        imageCredit: "Mondal, M. (n.d.). Solved problems on super mesh analysis. https://www.engineeringdevotion.com/electric-circuits/solved-problems/super-mesh-analysis.html"
+      },
+            {
+        question: "Find the voltage across each resistor in this circuit:",
+        questionImage: "CircuitsImg/CircuitsQ7.jpeg",
+        answer: {
+          mathml: `
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <msub>
+    <mi>i</mi>
+    <mrow class="MJX-TeXAtom-ORD">
+      <mn>1</mn>
+    </mrow>
+  </msub>
+  <mo>=</mo>
+  <mo>&#x2212;<!-- ΓêÆ --></mo>
+  <mn>7.5</mn>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mtext>&#xA0;</mtext>
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+  <mo>,</mo>
+  <mspace width="1em" />
+  <msub>
+    <mi>i</mi>
+    <mrow class="MJX-TeXAtom-ORD">
+      <mn>2</mn>
+    </mrow>
+  </msub>
+  <mo>=</mo>
+  <mo>&#x2212;<!-- ΓêÆ --></mo>
+  <mn>2.5</mn>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mtext>&#xA0;</mtext>
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+  <mo>,</mo>
+  <mspace width="1em" />
+  <msub>
+    <mi>i</mi>
+    <mrow class="MJX-TeXAtom-ORD">
+      <mn>3</mn>
+    </mrow>
+  </msub>
+  <mo>=</mo>
+  <mn>3.93</mn>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mtext>&#xA0;</mtext>
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+  <mo>,</mo>
+  <mspace width="1em" />
+  <msub>
+    <mi>i</mi>
+    <mrow class="MJX-TeXAtom-ORD">
+      <mn>4</mn>
+    </mrow>
+  </msub>
+  <mo>=</mo>
+  <mn>2.143</mn>
+  <mrow class="MJX-TeXAtom-ORD">
+    <mtext>&#xA0;</mtext>
+    <mi mathvariant="normal">A</mi>
+  </mrow>
+</math>
+`,
+        },
+        answerImage: "CircuitsImg/CircuitsA7.jpeg",
+        imageCredit: "Mondal, M. (n.d.). Solved problems on super mesh analysis. https://www.engineeringdevotion.com/electric-circuits/solved-problems/super-mesh-analysis.html"
+      }
+    ]
+  },
+
+math: {
+  subject: {
+    name: "Math",
+    icon: "math"
+  },
+  set: {
+    name: "Basic Math Expanded"
+  },
+  cards: [
+    // Addition
+    { question: "2 + 2", answer: "4" },
+    { question: "7 + 5", answer: "12" },
+    { question: "15 + 6", answer: "21" },
+    { question: "100 + 250", answer: "350" },
+
+    // Subtraction
+    { question: "9 - 4", answer: "5" },
+    { question: "25 - 10", answer: "15" },
+    { question: "120 - 45", answer: "75" },
+
+    // Multiplication
+    { question: "5 ├ù 3", answer: "15" },
+    { question: "6 ├ù 7", answer: "42" },
+    { question: "12 ├ù 12", answer: "144" },
+
+    // Division
+    { question: "10 ├╖ 2", answer: "5" },
+    { question: "36 ├╖ 6", answer: "6" },
+    { question: "81 ├╖ 9", answer: "9" },
+
+    // Fractions
+    { question: "1/2 + 1/2", answer: "1" },
+    { question: "3/4 - 1/4", answer: "1/2" },
+    { question: "1/3 ├ù 3", answer: "1" },
+
+    // Algebra basics
+    { question: "Solve: x + 5 = 12", answer: "x = 7" },
+    { question: "Solve: 3x = 18", answer: "x = 6" },
+    { question: "Solve: x - 8 = 10", answer: "x = 18" },
+
+    // Geometry
+    { question: "How many sides does a triangle have?", answer: "3" },
+    { question: "Area of a square = ?", answer: "side ├ù side" },
+    { question: "A shape with 6 sides is called?", answer: "Hexagon" }
+  ]
+},
+
+  science: {
+    subject: {
+      name: "Science",
+      icon: "science"
+  },
+  set: {
+    name: "Basic Science"
+  },
+  cards: [
+    { question: "Water formula", answer: "H2O" },
+    { question: "Sun is a?", answer: "Star" },
+    { question: "Earth revolves around?", answer: "Sun" },
+    { question: "Gravity", answer: "Force that attracts objects toward each other" },
+    { question: "Photosynthesis", answer: "Process plants make food using sunlight" },
+    { question: "Atom", answer: "Smallest unit of matter" },
+    { question: "Molecule", answer: "Two or more atoms bonded together" },
+    { question: "Solid", answer: "State of matter with fixed shape" },
+    { question: "Liquid", answer: "State of matter with no fixed shape" },
+    { question: "Gas", answer: "State of matter that expands to fill space" },
+    { question: "Evaporation", answer: "Liquid turning into gas" },
+    { question: "Condensation", answer: "Gas turning into liquid" },
+    { question: "Oxygen symbol", answer: "O" },
+    { question: "Carbon symbol", answer: "C" },
+    { question: "Nitrogen symbol", answer: "N" },
+    { question: "Force", answer: "Push or pull on an object" },
+    { question: "Energy", answer: "Ability to do work" },
+    { question: "Magnet attracts?", answer: "Iron and steel" },
+    { question: "Boiling point of water", answer: "100┬░C or 212┬░F" },
+    { question: "Freezing point of water", answer: "0┬░C or 32┬░F" }
+  ]
+},
+
+  history: {
+  subject: {
+    name: "History",
+    icon: "history"
+  },
+  set: {
+    name: "World History Basics"
+  },
+  cards: [
+    { question: "First president of the Philippines", answer: "Emilio Aguinaldo"},
+    { question: "Year World War II ended", answer: "1945" },
+    { question: "Ancient civilization in Egypt", answer: "Egyptians" },
+    { question: "Great Wall is in?", answer: "China" },
+    { question: "Renaissance period", answer: "14th to 17th century Europe" },
+    { question: "Columbus discovered America in?", answer: "1492" },
+    { question: "Roman Empire capital", answer: "Rome" },
+    { question: "Industrial Revolution started in", answer: "Britain" },
+    { question: "Declaration of Independence year", answer: "1776" },
+    { question: "Napoleon was from?", answer: "France" }
+  ]
+},
+
+  computer: {
+  subject: {
+    name: "Computer Science",
+    icon: "computer"
+  },
+  set: {
+    name: "Basic Concepts"
+  },
+  cards: [
+    { question: "HTML stands for?", answer: "HyperText Markup Language" },
+    { question: "CSS is for?", answer: "Styling web pages" },
+    { question: "JS is short for?", answer: "JavaScript" },
+    { question: "Function in JS", answer: "Reusable block of code" },
+    { question: "Variable", answer: "Stores data values" },
+    { question: "Array", answer: "Collection of values in order" },
+    { question: "Object", answer: "Data structure with key-value pairs" },
+    { question: "Loop", answer: "Executes code repeatedly" },
+    { question: "Conditional", answer: "Runs code based on a condition" },
+    { question: "Boolean", answer: "True or false value" }
+  ]
+},
+
+  filipino: {
+  subject: {
+    name: "Filipino",
+    icon: "filipino"
+  },
+  set: {
+    name: "Basic Words"
+  },
+  cards: [
+    { question: "Hello in Filipino", answer: "Kumusta" },
+    { question: "Thank you", answer: "Salamat" },
+    { question: "Good morning", answer: "Magandang umaga" },
+    { question: "Good night", answer: "Magandang gabi" },
+    { question: "Yes", answer: "Oo" },
+    { question: "No", answer: "Hindi" },
+    { question: "Please", answer: "Pakiusap" },
+    { question: "Excuse me", answer: "Paumanhin" },
+    { question: "Friend", answer: "Kaibigan" },
+    { question: "Family", answer: "Pamilya" }
+  ]
+},
+
+  english: {
+  subject: {
+    name: "English",
+    icon: "english"
+  },
+  set: {
+    name: "Basic Vocabulary"
+  },
+  cards: [
+    { question: "Hello", answer: "A greeting" },
+    { question: "Goodbye", answer: "A farewell" },
+    { question: "Please", answer: "Used to make a polite request" },
+    { question: "Thank you", answer: "Expression of gratitude" },
+    { question: "Yes", answer: "Affirmative response" },
+    { question: "No", answer: "Negative response" },
+    { question: "Excuse me", answer: "Used to politely get attention" },
+    { question: "Sorry", answer: "Expression of apology" },
+    { question: "Friend", answer: "Someone you have a close relationship with" },
+    { question: "Family", answer: "Group of related people" },
+    { question: "Book", answer: "Collection of written or printed pages" },
+    { question: "School", answer: "Place where people learn" },
+    { question: "Food", answer: "What people eat" },
+    { question: "Water", answer: "Liquid essential for life" },
+    { question: "Happy", answer: "Feeling of joy or pleasure" },
+    { question: "Sad", answer: "Feeling of unhappiness" }
+  ]
+},
+
+
+  biology: {
+    subject: { name: "Biology", icon: "biology" },
+    set: { name: "Basic Biology" },
+    cards: [
+      { question: "What is the powerhouse of the cell?", answer: "Mitochondria" },
+      { question: "What is the largest organ in the human body?", answer: "Skin" },
+      { question: "What carries genetic information?", answer: "DNA" },
+      { question: "The basic unit of life?", answer: "Cell" },
+      { question: "Process by which plants make food?", answer: "Photosynthesis" },
+      { question: "Blood cells that fight infection?", answer: "White blood cells" },
+      { question: "Blood cells that carry oxygen?", answer: "Red blood cells" },
+      { question: "Liquid part of blood?", answer: "Plasma" },
+      { question: "Where digestion begins?", answer: "Mouth" },
+      { question: "Organ that pumps blood?", answer: "Heart" },
+      { question: "Where gas exchange occurs?", answer: "Lungs" },
+      { question: "Process of cell division?", answer: "Mitosis" },
+      { question: "Organism made of many cells?", answer: "Multicellular organism" },
+      { question: "Organism made of one cell?", answer: "Unicellular organism" },
+      { question: "Organ that filters blood?", answer: "Kidney" },
+      { question: "Tissue that connects muscles to bones?", answer: "Tendon" },
+      { question: "Tissue that connects bones to bones?", answer: "Ligament" },
+      { question: "Primary molecule in cell membranes?", answer: "Phospholipid" },
+      { question: "Process of evolution?", answer: "Natural selection" },
+      { question: "Study of living organisms?", answer: "Biology" }
+    ]
+  },
+
+methodsOfResearch: {
+  subject: { name: "Methods of Research", icon: "research" },
+  set: { name: "Research Basics" },
+  cards: [
+    { question: "What is research?", answer: "A systematic investigation to establish facts or principles" },
+    { question: "Qualitative research", answer: "Research that focuses on understanding phenomena through observation and interviews" },
+    { question: "Quantitative research", answer: "Research that uses numerical data and statistical analysis" },
+    { question: "Experimental research", answer: "Research involving experiments to test hypotheses" },
+    { question: "Survey research", answer: "Research using questionnaires to collect data from a population" },
+    { question: "Case study", answer: "In-depth study of a particular instance or event" },
+    { question: "Research ethics", answer: "Guidelines for conducting research responsibly and ethically" },
+    { question: "Hypothesis", answer: "A testable statement predicting the outcome of research" },
+    { question: "Literature review", answer: "A summary and evaluation of existing research on a topic" },
+    { question: "Sampling", answer: "Process of selecting a representative group from a population for study" },
+    { question: "Variables", answer: "Elements or factors that can change or be measured in research" },
+    { question: "Independent variable", answer: "The factor that is manipulated to observe its effect" },
+    { question: "Dependent variable", answer: "The factor that is measured to see the effect of changes" },
+    { question: "Control group", answer: "Group in an experiment not exposed to the independent variable" },
+    { question: "Random sampling", answer: "Selecting participants randomly to avoid bias" },
+    { question: "Reliability", answer: "The consistency of a research measurement over time" },
+    { question: "Validity", answer: "The accuracy of a measurement in reflecting what it is supposed to measure" },
+    { question: "Data analysis", answer: "The process of organizing and interpreting collected data" },
+    { question: "Research design", answer: "The overall strategy used to integrate the different components of a study" },
+    { question: "Primary data", answer: "Data collected directly from first-hand sources" },
+    { question: "Secondary data", answer: "Data collected from existing sources or research" }
+  ]
+},
+
+engineeringManagement: {
+  subject: { name: "Engineering Management", icon: "management" },
+  set: { name: "Management Concepts" },
+  cards: [
+    { question: "What is engineering management?", answer: "Application of management principles to engineering projects and teams" },
+    { question: "Project management", answer: "Planning, organizing, and overseeing a project to achieve specific goals" },
+    { question: "Risk management", answer: "Identifying, assessing, and mitigating potential risks in a project" },
+    { question: "Leadership in engineering", answer: "Guiding and motivating technical teams to achieve objectives" },
+    { question: "Quality management", answer: "Ensuring products or services meet defined standards" },
+    { question: "Resource allocation", answer: "Distributing materials, people, and time efficiently for a project" },
+    { question: "Engineering ethics", answer: "Professional standards and moral responsibilities of engineers" },
+    { question: "Decision-making", answer: "Choosing the best course of action among alternatives" },
+    { question: "Cost estimation", answer: "Predicting the financial requirements of a project" },
+    { question: "Time management", answer: "Planning and controlling time to improve efficiency" },
+    { question: "Team building", answer: "Creating a cohesive and effective engineering team" },
+    { question: "Communication skills", answer: "Ability to convey ideas clearly within a team or project" },
+    { question: "Performance evaluation", answer: "Assessing the efficiency and output of team members" },
+    { question: "Process improvement", answer: "Analyzing and enhancing workflows for better productivity" },
+    { question: "Budgeting", answer: "Planning financial resources for projects" },
+    { question: "Conflict resolution", answer: "Managing disagreements effectively within a team" },
+    { question: "Strategic planning", answer: "Defining long-term goals and outlining steps to achieve them" },
+    { question: "Operations management", answer: "Overseeing day-to-day project operations" },
+    { question: "Engineering standards", answer: "Guidelines and regulations that must be followed in engineering projects" },
+    { question: "Documentation", answer: "Keeping detailed records of project plans, progress, and results" }
+  ]
