@@ -1,0 +1,50 @@
+name: Deploy on Push
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm install
+
+      - name: Deploy Backend to Render
+        if: github.event_name == 'push'
+        run: |
+          if [ ! -z "${{ secrets.RENDER_DEPLOY_HOOK }}" ]; then
+            curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+            echo "✅ Backend deployed successfully"
+          else
+            echo "⚠️ Render hook not configured, skipping backend deployment"
+          fi
+
+      - name: Deploy Frontend to Netlify
+        if: github.event_name == 'push'
+        run: |
+          if [ ! -z "${{ secrets.NETLIFY_AUTH_TOKEN }}" ]; then
+            npm install -g netlify-cli
+            netlify deploy --prod --dir=. --auth="${{ secrets.NETLIFY_AUTH_TOKEN }}" --site="${{ secrets.NETLIFY_SITE_ID }}"
+            echo "✅ Frontend deployed successfully"
+          else
+            echo "⚠️ Netlify credentials not configured, skipping frontend deployment"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "🎉 Deployment workflow completed!"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "🔗 Repository: ${{ github.repository }}"
