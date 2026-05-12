@@ -1763,6 +1763,38 @@ label {
   }
 }
 
+/* Small mobile screens - reduce bottom nav footprint */
+@media (max-width: 420px) {
+  .bottom-nav {
+    padding: 6px 10px calc(var(--safe-area-bottom) + 6px) !important;
+    box-shadow: 0 -1px 12px rgba(0,0,0,0.06);
+    border-top-width: 1px;
+  }
+
+  .bottom-nav button {
+    min-height: 44px !important;
+    padding: 6px 6px !important;
+    font-size: 12px !important;
+  }
+
+  .bottom-nav .icon-container {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 10px !important;
+  }
+
+  .bottom-nav .nav-icon {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  /* Reduce the reserved bottom padding so content has more space */
+  body.bottom-nav-visible main,
+  body.bottom-nav-visible .mobile-optimized {
+    padding-bottom: calc(72px + var(--safe-area-bottom)) !important;
+  }
+}
+
 /* Tablet adjustments */
 @media (min-width: 768px) {
   .bottom-nav {
