@@ -746,15 +746,16 @@ button .app-icon {
   --auth-gradient-start: rgba(30, 64, 175, 0.95);
   --auth-gradient-middle: rgba(59, 130, 246, 0.72);
   --auth-gradient-stop: rgba(16, 185, 129, 0.68);
-  min-height: 100vh;
+  background: radial-gradient(120% 140% at 50% -20%, var(--auth-gradient-start) 0%, var(--auth-gradient-middle) 45%, var(--auth-gradient-stop) 100%);
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  width: 100vw;
+  height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(32px, 8vh, 96px) clamp(16px, 6vw, 64px);
-  position: relative;
-  background: radial-gradient(120% 140% at 50% -20%, var(--auth-gradient-start) 0%, var(--auth-gradient-middle) 45%, var(--auth-gradient-stop) 100%);
-  color: #f8fafc;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .login-shell::before,
